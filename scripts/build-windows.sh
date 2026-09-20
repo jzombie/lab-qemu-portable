@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 # Windows portable build — runs inside MSYS2 (UCRT64 or MINGW64).
 # Invoked with `shell: msys2 {0}`. SDL-only UI (no GTK).
-# Env: QEMU_VERSION, TARGETS_MODE (lean|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
+# Env: QEMU_VERSION, TARGETS_MODE (lean|all), SRC_DIR, BUILD_DIR
+# (PREFIX is forced to $PWD/wininstall below; STAGE_DIR unused on Windows.)
 set -euo pipefail
-# MSYS2 auto-converts POSIX-looking args into Windows paths. That must be
-# suppressed ONLY for --prefix/--sysconfdir: `/qemu-portable` would otherwise
-# be rooted at the ephemeral MSYS2 install dir (D:\a\_temp\msys64), corrupting
-# the install tree. Everything else keeps default conversion: the native
-# Windows python running mkvenv.py (and mingw gcc) needs real source/build
-# paths converted to D:/a/... form. (A blanket MSYS2_ARG_CONV_EXCL="*" breaks
-# mkvenv with 'D:/d/a/... not found': native python resolves the unconverted
-# POSIX path drive-relative.)
-export MSYS2_ARG_CONV_EXCL="--prefix=;--sysconfdir="
+# Windows install strategy differs from Linux/macOS: NO fake-root prefix and NO
+# DESTDIR. A fake root like /qemu-portable gets mapped by MSYS2 path conversion
+# to the ephemeral MSYS2 install dir (D:\a\_temp\msys64\...), and the native
+# meson then mis-joins DESTDIR with the drive-letter prefix (exes land in `.`,
+# firmware in wrong share/ subdirs). Instead install directly into a REAL path
+# under the workspace: it converts 1:1 (POSIX<->Windows) in every tool
+# (sh, native python/meson, mingw gcc), so default conversion is correct and no
+# MSYS2_ARG_CONV_EXCL is needed. This mirrors upstream QEMU Windows CI.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PREFIX="$PWD/wininstall"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/build-common.sh"
 
 SRC_DIR="${SRC_DIR:-$PWD/qemu-${QEMU_VERSION:?set QEMU_VERSION}}"
 BUILD_DIR="${BUILD_DIR:-$PWD/build}"
-STAGE_DIR="${STAGE_DIR:-$PWD/stage}"
 
 echo "==> MSYS env: MSYSTEM=${MSYSTEM:-?} MINGW_PACKAGE_PREFIX=${MINGW_PACKAGE_PREFIX:-?}"
 pacman -Syu --noconfirm || true
@@ -51,11 +51,12 @@ qemu_configure "$SRC_DIR" --enable-whpx --enable-tcg --enable-sdl --disable-gtk 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"
 
-echo "==> Installing to DESTDIR=${STAGE_DIR}"
-make install DESTDIR="${STAGE_DIR}"
+echo "==> Installing to ${PREFIX} (no DESTDIR on Windows)"
+rm -rf "$PREFIX"
+make install
 
 echo "==> Verifying firmware blobs"
-ls "${STAGE_DIR}${PREFIX}/share/qemu/bios-256k.bin"
-ls "${STAGE_DIR}${PREFIX}/share/qemu/" | grep -E 'edk2|vgabios' || true
+ls "${PREFIX}/share/qemu/bios-256k.bin"
+ls "${PREFIX}/share/qemu/" | grep -E 'edk2|vgabios' || true
 command -v ccache >/dev/null 2>&1 && ccache --show-stats || true
 echo "Windows build OK"

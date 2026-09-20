@@ -4,13 +4,13 @@
 # objdump fallback. Runs under MSYS2 bash.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PREFIX="${PREFIX:-/qemu-portable}"
-STAGE_DIR="${STAGE_DIR:-$PWD/stage}"
+# Must match build-windows.sh: direct install into a real workspace path
+# (no DESTDIR staging on Windows — see comment there).
+ROOT="$PWD/wininstall"
 DIST_DIR="${DIST_DIR:-$PWD/dist}"
 VER="${QEMU_VERSION:?set QEMU_VERSION}"
 ENV_TAG="${MSYSTEM:-UCRT64}"
 
-ROOT="${STAGE_DIR}${PREFIX}"
 OUT="$PWD/qemu-portable"
 rm -rf "$OUT"
 mkdir -p "$OUT"
