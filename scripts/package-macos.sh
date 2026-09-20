@@ -99,8 +99,15 @@ done
 [[ "$missing" == "0" ]] || { echo "dylib closure incomplete" >&2; exit 1; }
 
 # Re-sign everything install_name_tool touched (it invalidates signatures).
-# qemu-system-* get the HVF entitlement; tools get a plain adhoc signature.
+# LIBS FIRST, then binaries: unsigned bundled dylibs are each assessed at
+# load time, which stalls first launch for minutes on CI runners.
+# qemu-system-* get the HVF entitlement; tools and libs get plain adhoc.
 ENT="${REPO_ROOT}/config/hvf-entitlements.plist"
+for lib in "$OUT"/lib/*.dylib; do
+  [[ -e "$lib" ]] || continue
+  codesign --force -s - "$lib"
+  codesign --verify --verbose "$lib"
+done
 for f in "$OUT"/bin/*; do
   [[ -f "$f" ]] || continue
   file -b "$f" | grep -q 'Mach-O' || continue
