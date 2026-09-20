@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Linux portable build (runs inside debian:12 container for glibc floor).
-# Env: QEMU_VERSION, TARGETS_MODE (lean|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
+# Env: QEMU_VERSION, TARGETS_MODE (native|both|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091

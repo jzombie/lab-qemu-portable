@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Windows portable build — runs inside MSYS2 (UCRT64 or MINGW64).
 # Invoked with `shell: msys2 {0}`. SDL-only UI (no GTK).
-# Env: QEMU_VERSION, TARGETS_MODE (lean|all), SRC_DIR, BUILD_DIR
+# Env: QEMU_VERSION, TARGETS_MODE (native|both|all), SRC_DIR, BUILD_DIR
 # (PREFIX is forced to $PWD/wininstall below; STAGE_DIR unused on Windows.)
 set -euo pipefail
 # Windows install strategy differs from Linux/macOS: NO fake-root prefix and NO

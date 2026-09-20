@@ -10,16 +10,16 @@ on:
   workflow_dispatch:
     inputs:
       qemu_version:
-        description: "QEMU version (e.g. 11.1.1) or 'auto' for latest stable"
+        description: "QEMU version (e.g. X.Y.Z) or 'auto' for latest stable"
         required: false
         default: "auto"
         type: string
       targets:
-        description: "Target set: lean (native-arch only) | dual (x86_64+aarch64 everywhere) | all (full softmmu)"
+        description: "What to build: 'native' (host-arch emulator only) | 'both' (x86_64 + aarch64 emulators everywhere) | 'all' (every guest arch QEMU supports)"
         required: false
-        default: "lean"
+        default: "native"
         type: choice
-        options: [lean, dual, all]
+        options: [native, both, all]
   schedule:
     - cron: "0 6 * * 1" # weekly Monday version check
   release:
@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TARGETS_MODE: ${{ inputs.targets || 'lean' }}
+  TARGETS_MODE: ${{ inputs.targets || 'native' }}
   PREFIX: /qemu-portable
 
 jobs:
@@ -96,7 +96,7 @@ jobs:
       MSYS: winsymlinks:nativestrict
       MSYSTEM: ${{ matrix.msystem || '' }}
       QEMU_VERSION: ${{ needs.resolve.outputs.version }}
-      TARGETS_MODE: ${{ inputs.targets || 'lean' }}
+      TARGETS_MODE: ${{ inputs.targets || 'native' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -129,7 +129,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-${{ matrix.name }}-${{ needs.resolve.outputs.version }}-${{ inputs.targets || 'lean' }}
+          key: ccache-${{ matrix.name }}-${{ needs.resolve.outputs.version }}-${{ inputs.targets || 'native' }}
           restore-keys: |
             ccache-${{ matrix.name }}-
         env:
@@ -205,12 +205,12 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: qemu-v${{ needs.resolve.outputs.version }}-${{ github.run_number }}
-          name: QEMU ${{ needs.resolve.outputs.version }} portable (${{ inputs.targets || 'lean' }})
+          name: QEMU ${{ needs.resolve.outputs.version }} portable (${{ inputs.targets || 'native' }})
           body: |
-            Portable zero-install QEMU ${{ needs.resolve.outputs.version }} (${{ inputs.targets || 'lean' }} targets).
+            Portable zero-install QEMU ${{ needs.resolve.outputs.version }} (${{ inputs.targets || 'native' }} targets).
 
-            - Lean: native-arch emulator only (x86_64 on Intel, aarch64 on ARM) + qemu-img + SeaBIOS/EDK2 firmware. No arch mixing.
-            - Dual (`targets=dual`): x86_64 + aarch64 emulators on every host (run foreign-arch guests via TCG).
+            - Native: host-arch emulator only (x86_64 on Intel, aarch64 on ARM) + qemu-img + SeaBIOS/EDK2 firmware. No arch mixing.
+            - Both (`targets=both`): x86_64 + aarch64 emulators on every host (run foreign-arch guests via software emulation).
             - Full (`targets=all`): all softmmu emulators (FreeBSD/other arches).
             - Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via `-display none -nographic`.
             - Layout: extract the archive and run `./qemu-portable/bin/qemu-system-x86_64 --version`. No installer/admin needed.
