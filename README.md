@@ -13,8 +13,7 @@ Portable, zero-install QEMU builds for Windows, Linux, and macOS — downloaded 
 | `windows-latest` (MSYS2 UCRT64) | `qemu-portable-win-x64-UCRT64-<ver>.zip` | `bin/qemu-system-*.exe` + bundled DLLs side-by-side + `share/qemu` |
 | `ubuntu-24.04` in `debian:12` container | `qemu-portable-linux-x86_64-<ver>.tar.xz` | `bin/qemu-system-*`, `bin/qemu-img`, `share/qemu` (Debian 12 glibc floor) |
 | `ubuntu-24.04-arm` in `debian:12` container | `qemu-portable-linux-aarch64-<ver>.tar.xz` | same, arm64 host |
-| `macos-15-intel` | `qemu-portable-macos-x86_64-<ver>.tar.gz` | signed binary, `@executable_path/../lib` dylibs, HVF entitlements |
-| `macos-15` (arm64) | `qemu-portable-macos-arm64-<ver>.tar.gz` | same, arm64 host |
+| `macos-15` (arm64) | `qemu-portable-macos-arm64-<ver>.tar.gz` | same, arm64 host (Intel Macs unsupported — legacy platform, no GHA runner) |
 
 Default target set (**lean**): `x86_64-softmmu,aarch64-softmmu` + `qemu-img` (~60–90MB compressed, ~10–20 min/build). Runs Windows x64/ARM64 and FreeBSD x64/ARM64. Optional **full** (`targets=all`): all softmmu emulators (~300–500MB, 3–5× longer).
 

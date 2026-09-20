@@ -75,14 +75,15 @@ jobs:
             container: debian:12
             build_script: scripts/build-linux.sh
             package_script: scripts/package-linux.sh
-          - name: macos-x64
-            os: macos-15-intel
-            build_script: scripts/build-macos.sh
-            package_script: scripts/package-macos.sh
           - name: macos-arm64
             os: macos-15
             build_script: scripts/build-macos.sh
             package_script: scripts/package-macos.sh
+          # NOTE: macos-x64 (Intel) intentionally omitted: Apple Silicon is the
+          # current platform, Intel GHA runners are legacy/slowest in the matrix
+          # (brew builds glib etc. from source, 30-60+ min leg), and Intel Macs
+          # cannot run Intel guests with HVF under Rosetta anyway. build-macos.sh
+          # is arch-agnostic, so the leg can be re-added if demand appears.
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container || null }}
     # Lean QEMU build: ~15 min (Linux) to ~40 min (Intel macOS). Fail fast on
