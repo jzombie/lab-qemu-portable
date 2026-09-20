@@ -1,0 +1,27 @@
+# QEMU build trees / downloads
+build/
+qemu-*/
+*.tar.xz
+*.tar.gz
+*.zip
+prefix/
+stage/
+dist/
+install/
+
+# QEMU meson artifacts
+pyvenv/
+.ccache/
+*.pyc
+__pycache__/
+
+# macOS / Windows noise
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Temp
+diff.patch

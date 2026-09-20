@@ -1,0 +1,183 @@
+name: build-qemu-portable
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - "scripts/**"
+      - "config/**"
+  workflow_dispatch:
+    inputs:
+      qemu_version:
+        description: "QEMU version (e.g. 11.1.1) or 'auto' for latest stable"
+        required: false
+        default: "auto"
+        type: string
+      targets:
+        description: "Target set: lean (x86_64+aarch64) or all (full softmmu)"
+        required: false
+        default: "lean"
+        type: choice
+        options: [lean, all]
+  schedule:
+    - cron: "0 6 * * 1" # weekly Monday version check
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  TARGETS_MODE: ${{ inputs.targets || 'lean' }}
+  PREFIX: /qemu-portable
+
+jobs:
+  resolve:
+    name: Resolve QEMU version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tarball: ${{ steps.v.outputs.tarball }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: bash scripts/resolve-version.sh "${{ inputs.qemu_version || 'auto' }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qemu-tarball
+          path: qemu-*.tar.xz*
+
+  build:
+    name: build (${{ matrix.name }})
+    needs: [resolve]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: win-x64-ucrt64
+            os: windows-latest
+            msystem: UCRT64
+            build_script: scripts/build-windows.sh
+            package_script: scripts/package-windows.sh
+          - name: linux-x64
+            os: ubuntu-24.04
+            container: debian:12
+            build_script: scripts/build-linux.sh
+            package_script: scripts/package-linux.sh
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            container: debian:12
+            build_script: scripts/build-linux.sh
+            package_script: scripts/package-linux.sh
+          - name: macos-x64
+            os: macos-15-intel
+            build_script: scripts/build-macos.sh
+            package_script: scripts/package-macos.sh
+          - name: macos-arm64
+            os: macos-15
+            build_script: scripts/build-macos.sh
+            package_script: scripts/package-macos.sh
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || null }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      MSYS: winsymlinks:nativestrict
+      MSYSTEM: ${{ matrix.msystem || '' }}
+      QEMU_VERSION: ${{ needs.resolve.outputs.version }}
+      TARGETS_MODE: ${{ inputs.targets || 'lean' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # QEMU's meson/python build uses symlinks; keep them intact on Windows.
+          symlinks: true
+      - run: git config --global core.symlinks true
+        if: runner.os == 'Windows'
+
+      - name: Setup MSYS2 (${{ matrix.msystem }})
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+
+      - name: Download QEMU tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: qemu-tarball
+          path: .
+
+      - name: Unpack sources
+        run: tar -xf qemu-${{ needs.resolve.outputs.version }}.tar.xz
+
+      - name: ccache cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ matrix.name }}-${{ needs.resolve.outputs.version }}-${{ inputs.targets || 'lean' }}
+          restore-keys: |
+            ccache-${{ matrix.name }}-
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+
+      - name: Build QEMU
+        run: |
+          export CCACHE_DIR="${{ github.workspace }}/.ccache"
+          bash "${{ matrix.build_script }}"
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+
+      - name: Package portable tree
+        run: bash "${{ matrix.package_script }}"
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+
+      - name: Smoke test
+        run: bash scripts/smoke-test.sh
+        shell: ${{ runner.os == 'Windows' && 'msys2 {0}' || 'bash' }}
+        env:
+          PORTABLE_DIR: ${{ github.workspace }}/qemu-portable
+
+      - name: Save build.ninja on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-ninja-${{ matrix.name }}
+          path: build/build.ninja
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Release portable binaries
+    needs: [resolve, build]
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          ls -lh
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: qemu-v${{ needs.resolve.outputs.version }}-${{ github.run_number }}
+          name: QEMU ${{ needs.resolve.outputs.version }} portable (${{ inputs.targets || 'lean' }})
+          body: |
+            Portable zero-install QEMU ${{ needs.resolve.outputs.version }} (${{ inputs.targets || 'lean' }} targets).
+
+            - Lean: qemu-system-x86_64 + qemu-system-aarch64 + qemu-img + SeaBIOS/EDK2 firmware.
+            - Full (`targets=all`): all softmmu emulators (FreeBSD/other arches).
+            - Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via `-display none -nographic`.
+            - Layout: extract the archive and run `./qemu-portable/bin/qemu-system-x86_64 --version`. No installer/admin needed.
+            - Linux built on Debian 12 glibc floor; macOS adhoc-signed for local HVF (`xattr -d com.apple.quarantine` may be needed after download); Windows is SDL-only (no GTK assets), DLLs bundled in `bin/`.
+          files: dist/*
