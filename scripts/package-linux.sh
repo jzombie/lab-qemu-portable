@@ -32,6 +32,6 @@ echo "$VER" > "$OUT/VERSION"
 mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-linux-${ARCH}-${VER}.tar.xz"
 tar -cJf "$PKG" -C "$PWD" qemu-portable
-rm -rf "$OUT"
+# NOTE: keep $OUT in place — the smoke-test step runs next against this tree.
 echo "wrote $PKG"
 ls -lh "$PKG"

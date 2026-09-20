@@ -72,6 +72,6 @@ EOF
 mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-macos-${ARCH}-${VER}.tar.gz"
 tar -czf "$PKG" -C "$PWD" qemu-portable
-rm -rf "$OUT"
+# NOTE: keep $OUT in place — the smoke-test step runs next against this tree.
 echo "wrote $PKG"
 ls -lh "$PKG"

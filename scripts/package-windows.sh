@@ -97,6 +97,6 @@ if command -v zip >/dev/null 2>&1; then
 else
   powershell.exe -NoProfile -Command "Compress-Archive -Path '$PWD/qemu-portable' -DestinationPath '$PKG' -Force"
 fi
-rm -rf "$OUT"
+# NOTE: keep $OUT in place — the smoke-test step runs next against this tree.
 echo "wrote $PKG"
 ls -lh "$PKG"
