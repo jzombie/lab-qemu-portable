@@ -13,7 +13,7 @@ ROOT="${STAGE_DIR}${PREFIX}"
 test -x "${ROOT}/bin/qemu-system-x86_64" || test -x "${ROOT}/bin/qemu-system-aarch64" \
   || { echo "no qemu-system binary under $ROOT/bin"; exit 1; }
 
-bash "${SCRIPT_DIR}/scrub-firmware-json.sh" "${ROOT}/share/qemu"
+python3 "${SCRIPT_DIR}/scrub-firmware-json.py" "${ROOT}/share/qemu"
 
 # Portable folder layout: dist/qemu-portable/{bin,share,etc}
 OUT="$PWD/qemu-portable"

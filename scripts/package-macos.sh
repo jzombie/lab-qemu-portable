@@ -19,7 +19,7 @@ cp -a "${ROOT}/share" "$OUT/share"
 mkdir -p "$OUT/etc"
 cp -a "${ROOT}/etc/." "$OUT/etc/" 2>/dev/null || true
 
-bash "${SCRIPT_DIR}/scrub-firmware-json.sh" "$OUT/share/qemu"
+python3 "${SCRIPT_DIR}/scrub-firmware-json.py" "$OUT/share/qemu"
 
 # Bundle Homebrew-provided dylibs.
 mkdir -p "$OUT/lib"
