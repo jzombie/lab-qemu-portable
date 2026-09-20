@@ -3,6 +3,11 @@
 # Invoked with `shell: msys2 {0}`. SDL-only UI (no GTK).
 # Env: QEMU_VERSION, TARGETS_MODE (lean|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
 set -euo pipefail
+# MSYS2 auto-converts POSIX-looking args (e.g. --prefix=/qemu-portable) into
+# Windows paths rooted at the ephemeral MSYS2 install dir (D:\a\_temp\msys64),
+# which corrupts configure's prefix and DESTDIR staging. Disable it: all paths
+# in this script are POSIX and consumed by MSYS/mingw tools that handle them.
+export MSYS2_ARG_CONV_EXCL="*"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/build-common.sh"
