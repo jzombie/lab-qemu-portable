@@ -96,10 +96,12 @@ mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-win-x64-${ENV_TAG}-${VER}.zip"
 rm -f "$PKG"
 # zip from MSYS2 preserves structure; powershell fallback if zip missing.
+# NOTE: paths inside powershell's -Command string get NO MSYS conversion,
+# so convert to Windows form explicitly with cygpath.
 if command -v zip >/dev/null 2>&1; then
   (cd "$PWD" && zip -qr "$PKG" qemu-portable)
 else
-  powershell.exe -NoProfile -Command "Compress-Archive -Path '$PWD/qemu-portable' -DestinationPath '$PKG' -Force"
+  powershell.exe -NoProfile -Command "Compress-Archive -Path '$(cygpath -w "$PWD/qemu-portable")' -DestinationPath '$(cygpath -w "$PKG")' -Force"
 fi
 # NOTE: keep $OUT in place — the smoke-test step runs next against this tree.
 echo "wrote $PKG"

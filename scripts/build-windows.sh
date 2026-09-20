@@ -23,7 +23,7 @@ BUILD_DIR="${BUILD_DIR:-$PWD/build}"
 echo "==> MSYS env: MSYSTEM=${MSYSTEM:-?} MINGW_PACKAGE_PREFIX=${MINGW_PACKAGE_PREFIX:-?}"
 pacman -Syu --noconfirm || true
 pacman -S --noconfirm --needed \
-  base-devel git python ninja \
+  base-devel git python ninja zip \
   "${MINGW_PACKAGE_PREFIX}-ntldd" \
   "${MINGW_PACKAGE_PREFIX}-toolchain" \
   "${MINGW_PACKAGE_PREFIX}-capstone" \
