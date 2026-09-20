@@ -18,11 +18,28 @@ fail() { echo "SMOKE-FAIL: $*" >&2; exit 1; }
 # Portable hard-timeout wrapper (macOS has no `timeout` command).
 # Usage: with_timeout <seconds> <cmd...>. Boot probes accept rc 124 (GNU
 # timeout) or 137 (SIGKILL from this wrapper) as "guest ran past timeout".
+# On timeout, macOS runners capture a `sample` stacks-shot of the stuck
+# process first, so the log shows WHERE it hung (Gatekeeper/trustd vs QEMU).
+diagnose_hang() {
+  local pid="$1"
+  [[ "$(uname -s)" == "Darwin" ]] || return 0
+  echo "--- hang diagnostics for pid $pid ---" >&2
+  ps -p "$pid" -o pid,ppid,stat,etime,command >&2 2>/dev/null || true
+  if command -v sample >/dev/null 2>&1; then
+    sample "$pid" 3 -file "${TMPDIR:-/tmp}/smoke-hang.sample.txt" >/dev/null 2>&1 || true
+    head -60 "${TMPDIR:-/tmp}/smoke-hang.sample.txt" >&2 2>/dev/null || true
+  fi
+  echo "--- end hang diagnostics ---" >&2
+}
 with_timeout() {
   local t="$1"; shift
   "$@" &
   local pid=$!
-  ( sleep "$t" && kill -9 "$pid" 2>/dev/null ) &
+  ( sleep "$t"
+    if kill -0 "$pid" 2>/dev/null; then
+      diagnose_hang "$pid"
+      kill -9 "$pid" 2>/dev/null
+    fi ) &
   local killer=$!
   local rc=0
   wait "$pid" 2>/dev/null || rc=$?
@@ -45,6 +62,10 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   # Drop any quarantine bits from the downloaded/built tree; they force a
   # (sometimes stalling) Gatekeeper assessment on first exec.
   xattr -cr "$DIR" 2>/dev/null || true
+  # Synchronous Gatekeeper assessment as a diagnostic: if THIS hangs, the
+  # stall is Apple's trust stack, not QEMU. Bounded so it can't hang the job.
+  echo "==> spctl assess (diagnostic, bounded 60s)"
+  with_timeout 60 spctl -a -t exec -vv "$NATIVE" || echo "note: spctl assess rc=$? (nonzero = assessment issue)"
 fi
 
 echo "==> $NATIVE --version"
