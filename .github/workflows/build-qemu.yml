@@ -25,6 +25,11 @@ on:
         required: false
         default: "all"
         type: string
+      force:
+        description: "Publish a release even if this QEMU version already has one (e.g. rebuilt for a new toolchain/runner image)"
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: "0 6 * * 1" # weekly Monday version check
   release:
@@ -49,10 +54,23 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       tarball: ${{ steps.v.outputs.tarball }}
+      is_new: ${{ steps.check.outputs.is_new }}
     steps:
       - uses: actions/checkout@v4
       - id: v
         run: bash scripts/resolve-version.sh "${{ inputs.qemu_version || 'auto' }}"
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QEMU_VERSION: ${{ steps.v.outputs.version }}
+        # One release per upstream version: skip publishing if this version
+        # already has a release (build still runs for validation/artifacts).
+        run: |
+          if gh release view "qemu-v${QEMU_VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "is_new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_new=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: qemu-tarball
@@ -61,12 +79,17 @@ jobs:
   setup:
     name: Select platforms
     runs-on: ubuntu-latest
+    needs: [resolve]
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
+      publish: ${{ steps.m.outputs.publish }}
     steps:
       - id: m
         env:
           WANT: ${{ inputs.platforms || 'all' }}
+          IS_NEW: ${{ needs.resolve.outputs.is_new }}
+          FORCE: ${{ inputs.force }}
+          EVENT: ${{ github.event_name }}
         run: |
           python3 - <<'EOF'
           import json, os
@@ -74,17 +97,23 @@ jobs:
           # current platform; Intel GHA runners are legacy/slowest (brew builds
           # glib etc. from source, 30-60+ min leg). build-macos.sh stays
           # arch-agnostic, so the leg can be re-added if demand appears.
+          #
+          # Linux container is pinned by DIGEST, not tag: the toolchain only
+          # moves when this pin is deliberately bumped, turning invisible
+          # environment drift into a reviewable "new binary" event. The digest
+          # below is the debian:12 manifest list (covers x64 + ARM64 runners).
+          DEBIAN = "debian:12@sha256:f37a335e82bca302e955fa39f9dfe28f1be618f016f8a2b56318e5a5111afc26"
           entries = {
             "win-x64": {"name": "win-x64-ucrt64", "os": "windows-latest",
                         "msystem": "UCRT64",
                         "build_script": "scripts/build-windows.sh",
                         "package_script": "scripts/package-windows.sh"},
             "linux-x64": {"name": "linux-x64", "os": "ubuntu-24.04",
-                          "container": "debian:12",
+                          "container": DEBIAN,
                           "build_script": "scripts/build-linux.sh",
                           "package_script": "scripts/package-linux.sh"},
             "linux-arm64": {"name": "linux-arm64", "os": "ubuntu-24.04-arm",
-                            "container": "debian:12",
+                            "container": DEBIAN,
                             "build_script": "scripts/build-linux.sh",
                             "package_script": "scripts/package-linux.sh"},
             "macos-arm64": {"name": "macos-arm64", "os": "macos-15",
@@ -100,10 +129,15 @@ jobs:
               if unknown:
                   raise SystemExit(f"unknown platform(s): {unknown}; valid: {sorted(entries)}")
               sel = [entries[k] for k in keys]
-          # Entries without a container key get none (matrix.container unset).
+          full = want in ("", "all")
+          # Publish only complete sets, and only for new upstream versions —
+          # unless manually forced (e.g. rebuilt for a new toolchain image).
+          publish = full and (os.environ.get("IS_NEW") == "true"
+                              or os.environ.get("FORCE", "").lower() == "true")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write("matrix=" + json.dumps({"include": sel}) + "\n")
-          print("selected:", [e["name"] for e in sel])
+              f.write(f"publish={'true' if publish else 'false'}\n")
+          print("selected:", [e["name"] for e in sel], "publish:", publish)
           EOF
 
   build:
@@ -200,6 +234,27 @@ jobs:
         env:
           PORTABLE_DIR: ${{ github.workspace }}/qemu-portable
 
+      - name: Write BUILD-INFO manifest
+        # Provenance record shipped inside artifacts and releases: answers
+        # "which toolchain built this binary" for same-version rebuilds.
+        run: |
+          {
+            echo "qemu_version=${QEMU_VERSION}"
+            echo "targets_mode=${TARGETS_MODE}"
+            echo "platform=${{ matrix.name }}"
+            echo "repo=${GITHUB_REPOSITORY}"
+            echo "commit=${GITHUB_SHA}"
+            echo "built_utc=$(date -u +%FT%TZ)"
+            echo "runner_arch=$(uname -m)"
+            echo "runner_image_os=${ImageOS:-unknown}"
+            echo "runner_image_version=${ImageVersion:-unknown}"
+            echo "container=${{ matrix.container || 'none' }}"
+            command -v gcc >/dev/null 2>&1 && gcc --version | head -1 || true
+            command -v clang >/dev/null 2>&1 && clang --version | head -1 | xargs || true
+            command -v ccache >/dev/null 2>&1 && ccache --version | head -1 || true
+          } > "dist/BUILD-INFO-${{ matrix.name }}.txt"
+          cat "dist/BUILD-INFO-${{ matrix.name }}.txt"
+
       - name: Save build.ninja on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -216,11 +271,12 @@ jobs:
 
   release:
     name: Release portable binaries
-    needs: [resolve, build]
-    # Only publish complete sets: tags, schedule, pushes, or manual runs that
-    # built ALL platforms. Subset runs (platforms=macos-arm64, ...) are for
-    # iteration and stop at artifacts.
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'schedule' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.platforms == 'all' || inputs.platforms == ''))
+    needs: [resolve, setup, build]
+    # Publish only complete sets for new upstream versions — or any full-set
+    # manual run with force=true (e.g. rebuilt for a new toolchain image).
+    # Subset iteration runs stop at artifacts. One release per QEMU version:
+    # rebuilding republishes under the same tag.
+    if: needs.setup.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -235,7 +291,7 @@ jobs:
           ls -lh
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: qemu-v${{ needs.resolve.outputs.version }}-${{ github.run_number }}
+          tag_name: qemu-v${{ needs.resolve.outputs.version }}
           name: QEMU ${{ needs.resolve.outputs.version }} portable (${{ inputs.targets || 'native' }})
           body: |
             Portable zero-install QEMU ${{ needs.resolve.outputs.version }} (${{ inputs.targets || 'native' }} targets).
@@ -245,5 +301,6 @@ jobs:
             - Full (`targets=all`): all softmmu emulators (FreeBSD/other arches).
             - Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via `-display none -nographic`.
             - Layout: extract the archive and run `./qemu-portable/bin/qemu-system-x86_64 --version`. No installer/admin needed.
-            - Linux built on Debian 12 glibc floor; macOS adhoc-signed for local HVF (`xattr -d com.apple.quarantine` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root.
+            - Linux built on a digest-pinned Debian 12 container (see BUILD-INFO-*.txt for the exact toolchain); macOS adhoc-signed for local HVF (`xattr -d com.apple.quarantine` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root.
+            - Each archive is accompanied by a `BUILD-INFO-<platform>.txt` provenance record (commit, runner image, compiler, container digest).
           files: dist/*

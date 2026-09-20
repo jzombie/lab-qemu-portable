@@ -58,13 +58,15 @@ Per-OS notes:
    - `qemu_version`: `auto` (find the newest stable release by itself), or a specific version like `X.Y.Z` to pin a build.
    - `targets`: `native`, `both`, or `all` (see table above).
    - `platforms`: `all`, or a comma-separated subset to iterate cheaply — e.g. `macos-arm64`. Valid names: `win-x64`, `linux-x64`, `linux-arm64`, `macos-arm64`. Subset runs upload artifacts but never publish a release.
+   - `force`: publish a release even if this QEMU version already has one. Use it when you rebuild for a new toolchain/runner image rather than a new QEMU.
 3. Click the green **Run workflow** button. Each selected platform takes roughly 10–40 minutes.
-4. When all selected platforms succeed, a **Release portable binaries** job (full-matrix runs only) attaches the archives to a new GitHub Release named after the QEMU version, with a `SHA256SUMS.txt` checksum file.
+4. When a full-matrix run succeeds **and** the QEMU version is new (or `force` is set), a **Release portable binaries** job attaches the archives to a `qemu-vX.Y.Z` GitHub Release (rebuilt versions republish under the same tag), with a `SHA256SUMS.txt` checksum file.
 
 Other triggers, all automatic, no setup needed:
 
-- **Push to `main`** touching `.github/workflows/`, `scripts/`, or `config/` rebuilds with defaults (`auto` + `native`). A newer push cancels a still-running older one.
-- **Weekly schedule** (Monday mornings) rebuilds with defaults, so new upstream QEMU releases get picked up without manual action.
+- **Push to `main`** touching `.github/workflows/`, `scripts/`, or `config/` rebuilds with defaults (`auto` + `native`) for validation — artifacts only, no release.
+- **Weekly schedule** (Monday mornings) resolves the latest upstream version and rebuilds with defaults, so new QEMU releases get picked up without manual action — but a **release is published only when the QEMU version is new** (no existing `qemu-vX.Y.Z` release), or when a manual run sets `force: true` (e.g. you rebuilt an old version for a new toolchain/runner image). Rebuilds republish under the same `qemu-vX.Y.Z` tag instead of littering duplicates. Every artifact ships with a `BUILD-INFO-<platform>.txt` provenance record (commit, runner image, compiler, container digest).
+- **Linux toolchain pin:** the Debian container is pinned by digest (`debian:12@sha256:…`, see the `setup` job), so the Linux toolchain only moves when that pin is deliberately bumped in review — invisible environment drift can't silently change binaries.
 
 How version detection works: `scripts/resolve-version.sh` lists `download.qemu.org`, keeps only final `X.Y.Z` releases (release candidates excluded), and picks the newest. Every build job then reuses that exact downloaded tarball, so all four platforms compile identical sources.
 
