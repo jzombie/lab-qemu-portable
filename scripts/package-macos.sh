@@ -52,43 +52,63 @@ for _ in 1 2 3 4 5 6 7 8; do
   done
   [[ "$changed" == "0" ]] && break
 done
-# Rewrite ids + references to the bundled copies.
+# Rewrite ids + references to the bundled copies. otool -L line 1 is the
+# `file:` header and the target's own install ID must be skipped, otherwise
+# every lib "needs itself".
+target_id() { otool -D "$1" 2>/dev/null | sed -n '2p' | awk '{print $1}'; }
 for lib in "$OUT"/lib/*.dylib; do
   [[ -e "$lib" ]] || continue
-  install_name_tool -id "@executable_path/../lib/$(basename "$lib")" "$lib"
+  install_name_tool -id "@executable_path/../lib/$(basename "$lib")" "$lib" 2>/dev/null || true
 done
 for target in "$OUT"/bin/qemu-* "$OUT"/lib/*.dylib; do
   [[ -e "$target" ]] || continue
+  id="$(target_id "$target")"
   while IFS= read -r dep; do
     [[ -n "$dep" ]] || continue
+    [[ "$dep" == "$id" ]] && continue
     if is_system_dep "$dep"; then continue; fi
-    install_name_tool -change "$dep" "@executable_path/../lib/$(basename "$dep")" "$target" || true
+    install_name_tool -change "$dep" "@executable_path/../lib/$(basename "$dep")" "$target" 2>/dev/null || true
   done < <(otool -L "$target" 2>/dev/null | awk 'NR>1 {print $1}')
 done
-# Verify closure: every @executable_path ref must resolve to a bundled file.
+# Verify closure: every @executable_path/@loader_path ref must resolve from
+# the TARGET's directory, and no build-host absolute paths may remain.
 missing=0
 for target in "$OUT"/bin/qemu-* "$OUT"/lib/*.dylib; do
   [[ -e "$target" ]] || continue
+  id="$(target_id "$target")"
+  dir="$(dirname "$target")"
   while IFS= read -r dep; do
+    [[ -n "$dep" ]] || continue
+    [[ "$dep" == "$id" ]] && continue
     case "$dep" in
-      @executable_path/*)
-        rel="${dep#@executable_path/}"
-        if [[ ! -e "$OUT/${rel}" ]]; then
-          echo "ERROR: $target needs $dep — not bundled" >&2
-          missing=1
-        fi
+      @executable_path/*) check="$dir/${dep#@executable_path/}" ;;
+      @loader_path/*) check="$dir/${dep#@loader_path/}" ;;
+      /opt/*|/usr/local/*)
+        echo "ERROR: $target still references build-host path $dep" >&2
+        missing=1
+        continue
         ;;
+      *) continue ;;
     esac
+    if [[ ! -e "$check" ]]; then
+      echo "ERROR: $target needs $dep — not bundled" >&2
+      missing=1
+    fi
   done < <(otool -L "$target" 2>/dev/null | awk 'NR>1 {print $1}')
 done
 [[ "$missing" == "0" ]] || { echo "dylib closure incomplete" >&2; exit 1; }
 
-# Re-sign for HVF (install_name_tool invalidates the build-time signature).
+# Re-sign everything install_name_tool touched (it invalidates signatures).
+# qemu-system-* get the HVF entitlement; tools get a plain adhoc signature.
 ENT="${REPO_ROOT}/config/hvf-entitlements.plist"
-for bin in "$OUT"/bin/qemu-system-*; do
-  [[ -e "$bin" ]] || continue
-  codesign --entitlements "$ENT" --force -s - "$bin"
-  codesign --verify --verbose "$bin"
+for f in "$OUT"/bin/*; do
+  [[ -f "$f" ]] || continue
+  file -b "$f" | grep -q 'Mach-O' || continue
+  case "$(basename "$f")" in
+    qemu-system-*) codesign --entitlements "$ENT" --force -s - "$f" ;;
+    *) codesign --force -s - "$f" ;;
+  esac
+  codesign --verify --verbose "$f"
 done
 
 echo "$VER" > "$OUT/VERSION"
