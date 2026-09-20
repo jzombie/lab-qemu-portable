@@ -35,12 +35,14 @@ CONFIGURE_ARGS=(
   --enable-fdt=system
   --disable-werror
   --disable-docs
-  --disable-download
   --enable-vnc
   --enable-sdl
   --disable-gtk
   --enable-curses
 )
+# NOTE: no --disable-download. QEMU 11 mkvenv must fetch setuptools/qmp/pycotap
+# from PyPI (only meson is vendored in python/wheels); offline mode fails with
+# "No matching distribution found for setuptools". Runners have network.
 if [[ -n "$TARGET_LIST" ]]; then
   CONFIGURE_ARGS+=("--target-list=${TARGET_LIST}")
 fi

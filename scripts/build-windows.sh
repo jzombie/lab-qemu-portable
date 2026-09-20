@@ -14,7 +14,8 @@ STAGE_DIR="${STAGE_DIR:-$PWD/stage}"
 echo "==> MSYS env: MSYSTEM=${MSYSTEM:-?} MINGW_PACKAGE_PREFIX=${MINGW_PACKAGE_PREFIX:-?}"
 pacman -Syu --noconfirm || true
 pacman -S --noconfirm --needed \
-  base-devel git python ninja ntldd \
+  base-devel git python ninja \
+  "${MINGW_PACKAGE_PREFIX}-ntldd" \
   "${MINGW_PACKAGE_PREFIX}-toolchain" \
   "${MINGW_PACKAGE_PREFIX}-glib2" \
   "${MINGW_PACKAGE_PREFIX}-pixman" \

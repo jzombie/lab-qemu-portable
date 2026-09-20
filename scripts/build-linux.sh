@@ -18,6 +18,7 @@ apt-get install -y --no-install-recommends \
   libcapstone-dev libdtc-dev libffi-dev libglib2.0-dev libpixman-1-dev \
   libslirp-dev libsdl2-dev libusb-1.0-0-dev libseccomp-dev libcap-ng-dev \
   zlib1g-dev make meson ninja-build pkgconf python3 python3-venv \
+  python3-pip python3-setuptools python3-wheel \
   tar xz-utils curl file patchelf
 
 if command -v ccache >/dev/null 2>&1; then

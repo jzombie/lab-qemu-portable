@@ -109,6 +109,10 @@ jobs:
           name: qemu-tarball
           path: .
 
+      - name: Install unpack tools (Linux container)
+        if: runner.os == 'Linux'
+        run: apt-get update && apt-get install -y --no-install-recommends xz-utils tar
+
       - name: Unpack sources
         run: tar -xf qemu-${{ needs.resolve.outputs.version }}.tar.xz
 
