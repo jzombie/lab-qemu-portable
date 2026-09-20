@@ -17,15 +17,28 @@ SYS_A64="$BIN/qemu-system-aarch64"
 IMG="$BIN/qemu-img"
 [[ -x "$IMG" ]] || IMG="$IMG.exe"
 
-[[ -x "$SYS_X64" ]] || fail "missing $BIN/qemu-system-x86_64"
-echo "==> $SYS_X64 --version"
-"$SYS_X64" --version
+[[ -x "$SYS_X64" ]] || fail "missing $BIN/qemu-system-x86_64 (lean builds ship both emulators on every host)"
+
+# Primary = native-arch emulator (reads naturally in logs: aarch64 checks on
+# arm64 hosts, x86_64 on Intel). The cross-arch emulator is checked after.
+case "$(uname -m)" in
+  arm64|aarch64) PRIMARY="$SYS_A64"; SECONDARY="$SYS_X64" ;;
+  *) PRIMARY="$SYS_X64"; SECONDARY="$SYS_A64" ;;
+esac
+[[ -x "$PRIMARY" ]] || PRIMARY="$SYS_X64"
+
+echo "==> $PRIMARY --version"
+"$PRIMARY" --version
 if [[ -n "${QEMU_VERSION:-}" ]]; then
-  "$SYS_X64" --version | grep -q "$QEMU_VERSION" || fail "version mismatch (want $QEMU_VERSION)"
+  "$PRIMARY" --version | grep -q "$QEMU_VERSION" || fail "version mismatch (want $QEMU_VERSION)"
+fi
+if [[ -x "$SECONDARY" && "$SECONDARY" != "$PRIMARY" ]]; then
+  echo "==> $SECONDARY --version"
+  "$SECONDARY" --version
 fi
 
 echo "==> accel help"
-"$SYS_X64" -accel help | grep -Ei 'tcg|kvm|hvf|whpx' || fail "no accel backend listed"
+"$PRIMARY" -accel help | grep -Ei 'tcg|kvm|hvf|whpx' || fail "no accel backend listed"
 
 if [[ -x "$SYS_A64" ]]; then
   echo "==> aarch64 -M help"
@@ -62,7 +75,10 @@ fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "==> codesign verify"
-  codesign --verify --verbose "$SYS_X64" || fail "codesign verify failed"
+  for _b in "$SYS_X64" "$SYS_A64"; do
+    [[ -x "$_b" ]] || continue
+    codesign --verify --verbose "$_b" || fail "codesign verify failed for $_b"
+  done
 fi
 
 echo "SMOKE-OK"
