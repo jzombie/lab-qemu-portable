@@ -15,7 +15,7 @@ Portable, zero-install QEMU builds for Windows, Linux, and macOS — downloaded 
 | `ubuntu-24.04-arm` in `debian:12` container | `qemu-portable-linux-aarch64-<ver>.tar.xz` | same, arm64 host |
 | `macos-15` (arm64) | `qemu-portable-macos-arm64-<ver>.tar.gz` | same, arm64 host (Intel Macs unsupported — legacy platform, no GHA runner) |
 
-Default target set (**lean**): `x86_64-softmmu,aarch64-softmmu` + `qemu-img` (~60–90MB compressed, ~10–20 min/build). Runs Windows x64/ARM64 and FreeBSD x64/ARM64. Optional **full** (`targets=all`): all softmmu emulators (~300–500MB, 3–5× longer).
+Default target set (**lean**): native-arch emulator only — `x86_64-softmmu` on Intel, `aarch64-softmmu` on ARM — plus `qemu-img` (~30–50MB compressed, faster builds). No arch mixing: an ARM build runs ARM guests, an Intel build runs x86 guests. Opt-ins via `workflow_dispatch`: **dual** (`x86_64+aarch64` everywhere, run foreign-arch guests via TCG) or **all** (full softmmu, ~300–500MB).
 
 ## Usage (no install/admin needed)
 

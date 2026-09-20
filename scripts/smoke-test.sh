@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Shared smoke test. The NATIVE-arch emulator gets full checks (version,
-# accel, boot probe); the cross-arch emulator gets a --version load check
-# only (--version proves the loader + bundled dylibs/DLLs resolve, which is
-# the failure mode that matters for a shipped-but-foreign binary).
-# No KVM/HVF/WHPX required (TCG boot probe).
+# Shared smoke test. Native-arch emulator ONLY — no cross-arch binaries are
+# built, shipped, or executed (see build-common.sh arch policy).
+# Checks: --version, accel backends, qemu-img, firmware presence, headless
+# TCG boot probe of the native emulator. No KVM/HVF/WHPX required.
 # Every guest binary invocation goes through with_timeout: first launch of an
 # adhoc-signed binary on macOS can stall for minutes in Gatekeeper assessment,
 # and a stall must fail loudly instead of hanging the job silently.
@@ -32,19 +31,15 @@ with_timeout() {
   return "$rc"
 }
 
-SYS_X64="$BIN/qemu-system-x86_64"
-[[ -x "$SYS_X64" ]] || SYS_X64="$SYS_X64.exe"
-SYS_A64="$BIN/qemu-system-aarch64"
-[[ -x "$SYS_A64" ]] || SYS_A64="$SYS_A64.exe"
+# Native emulator for this host. Nothing else is executed, ever.
+case "$(uname -m)" in
+  arm64|aarch64) NATIVE="$BIN/qemu-system-aarch64" ;;
+  *) NATIVE="$BIN/qemu-system-x86_64" ;;
+esac
+[[ -x "$NATIVE" ]] || NATIVE="$NATIVE.exe"
+[[ -x "$NATIVE" ]] || fail "missing native emulator for $(uname -m)"
 IMG="$BIN/qemu-img"
 [[ -x "$IMG" ]] || IMG="$IMG.exe"
-
-# Native emulator for this host gets the full checks.
-case "$(uname -m)" in
-  arm64|aarch64) NATIVE="$SYS_A64"; CROSS="$SYS_X64" ;;
-  *) NATIVE="$SYS_X64"; CROSS="$SYS_A64" ;;
-esac
-[[ -x "$NATIVE" ]] || fail "missing native emulator for $(uname -m)"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   # Drop any quarantine bits from the downloaded/built tree; they force a
@@ -63,15 +58,9 @@ echo "==> accel help"
 accel_out="$(with_timeout 120 "$NATIVE" -accel help)" || fail "$NATIVE -accel help failed (rc=$?)"
 grep -Ei 'tcg|kvm|hvf|whpx' <<<"$accel_out" || fail "no accel backend listed"
 
-# Cross-arch emulator: --version only (load check, no boot).
-if [[ -x "$CROSS" && "$CROSS" != "$NATIVE" ]]; then
-  echo "==> $CROSS --version (cross-arch load check only)"
-  with_timeout 120 "$CROSS" --version || fail "cross-arch emulator failed to start (rc=$?)"
-fi
-
-if [[ -x "$SYS_A64" ]]; then
+if [[ "$NATIVE" == *"aarch64"* ]]; then
   echo "==> aarch64 -M help"
-  m_out="$(with_timeout 120 "$SYS_A64" -M help)" || fail "aarch64 -M help failed (rc=$?)"
+  m_out="$(with_timeout 120 "$NATIVE" -M help)" || fail "aarch64 -M help failed (rc=$?)"
   grep -q virt <<<"$m_out" || fail "aarch64 missing virt machine"
 fi
 
@@ -92,7 +81,7 @@ elif [[ -d "$DIR/share" ]]; then FWDIR="$DIR/share"
 else fail "missing $DIR/share[/qemu]"; fi
 
 echo "==> headless boot probe, native emulator (TCG, expect timeout=guest ran)"
-if [[ "$NATIVE" == "$SYS_X64" ]]; then
+if [[ "$NATIVE" == *"x86_64"* ]]; then
   [[ -f "$FWDIR/bios-256k.bin" ]] || fail "missing bios-256k.bin"
   set +e
   with_timeout 15 "$NATIVE" -display none -accel tcg -m 256 \
@@ -112,10 +101,7 @@ fi
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "==> codesign verify"
-  for _b in "$SYS_X64" "$SYS_A64"; do
-    [[ -x "$_b" ]] || continue
-    codesign --verify --verbose "$_b" || fail "codesign verify failed for $_b"
-  done
+  codesign --verify --verbose "$NATIVE" || fail "codesign verify failed for $NATIVE"
 fi
 
 echo "SMOKE-OK"

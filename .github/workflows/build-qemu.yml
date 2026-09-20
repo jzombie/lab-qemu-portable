@@ -15,11 +15,11 @@ on:
         default: "auto"
         type: string
       targets:
-        description: "Target set: lean (x86_64+aarch64) or all (full softmmu)"
+        description: "Target set: lean (native-arch only) | dual (x86_64+aarch64 everywhere) | all (full softmmu)"
         required: false
         default: "lean"
         type: choice
-        options: [lean, all]
+        options: [lean, dual, all]
   schedule:
     - cron: "0 6 * * 1" # weekly Monday version check
   release:
@@ -209,7 +209,8 @@ jobs:
           body: |
             Portable zero-install QEMU ${{ needs.resolve.outputs.version }} (${{ inputs.targets || 'lean' }} targets).
 
-            - Lean: qemu-system-x86_64 + qemu-system-aarch64 + qemu-img + SeaBIOS/EDK2 firmware.
+            - Lean: native-arch emulator only (x86_64 on Intel, aarch64 on ARM) + qemu-img + SeaBIOS/EDK2 firmware. No arch mixing.
+            - Dual (`targets=dual`): x86_64 + aarch64 emulators on every host (run foreign-arch guests via TCG).
             - Full (`targets=all`): all softmmu emulators (FreeBSD/other arches).
             - Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via `-display none -nographic`.
             - Layout: extract the archive and run `./qemu-portable/bin/qemu-system-x86_64 --version`. No installer/admin needed.
