@@ -28,6 +28,11 @@ on:
 permissions:
   contents: write
 
+# New pushes supersede in-progress runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   TARGETS_MODE: ${{ inputs.targets || 'lean' }}
   PREFIX: /qemu-portable
