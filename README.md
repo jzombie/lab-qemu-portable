@@ -1,9 +1,9 @@
 # lab-qemu-portable
 
-> **STATUS: WORK IN PROGRESS — ACTIVE BRING-UP.** The build matrix is being
-> debugged leg by leg and CI is red while that happens. Nothing below is a
-> working release yet; Linux x64/ARM64 have built end-to-end, macOS and
-> Windows legs are still being fixed. Check Actions for current state.
+> **STATUS: BUILDING.** All four platform legs (Windows x64, Linux x64/ARM64,
+> macOS ARM64) compile, package, and pass smoke tests; releases publish
+> automatically per QEMU version. Still pre-1.0: expect iteration on packaging
+> details and growing test coverage.
 
 Portable, zero-install QEMU builds for Windows, Linux, and macOS. A GitHub Actions workflow downloads the latest stable QEMU source from `download.qemu.org` and compiles it for each OS/architecture. No installer, no admin rights, no system changes: extract the archive and run.
 
