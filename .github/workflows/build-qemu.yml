@@ -85,6 +85,9 @@ jobs:
             package_script: scripts/package-macos.sh
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container || null }}
+    # Lean QEMU build: ~15 min (Linux) to ~40 min (Intel macOS). Fail fast on
+    # a real hang instead of burning the 6h default timeout.
+    timeout-minutes: 90
     defaults:
       run:
         shell: bash
