@@ -31,7 +31,7 @@ echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs
+qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs --enable-sdl
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"

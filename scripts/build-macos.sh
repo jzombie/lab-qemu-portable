@@ -25,7 +25,7 @@ echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-qemu_configure "$SRC_DIR" --enable-hvf --enable-cocoa --enable-tcg
+qemu_configure "$SRC_DIR" --enable-hvf --enable-cocoa --enable-tcg --disable-sdl
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"

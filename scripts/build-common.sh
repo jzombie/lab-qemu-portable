@@ -53,10 +53,14 @@ CONFIGURE_ARGS=(
   --disable-werror
   --disable-docs
   --enable-vnc
-  --enable-sdl
   --disable-gtk
   --enable-curses
 )
+# NOTE: no --enable-sdl here — SDL is per-OS. Linux/Windows enable it;
+# macOS disables it (see build-macos.sh): Homebrew's `sdl` formula is now the
+# sdl2-compat shim, whose load-time initializer dlopens SDL3 and pops a
+# blocking NSAlert dialog when that fails — hanging even `qemu --version`
+# forever on headless runners. Cocoa is the native macOS UI; nothing needs SDL.
 # NOTE: no --disable-download. QEMU 11 mkvenv must fetch setuptools/qmp/pycotap
 # from PyPI (only meson is vendored in python/wheels); offline mode fails with
 # "No matching distribution found for setuptools". Runners have network.
