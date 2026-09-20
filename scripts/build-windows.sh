@@ -55,8 +55,9 @@ echo "==> Installing to ${PREFIX} (no DESTDIR on Windows)"
 rm -rf "$PREFIX"
 make install
 
-echo "==> Verifying firmware blobs"
-ls "${PREFIX}/share/qemu/bios-256k.bin"
-ls "${PREFIX}/share/qemu/" | grep -E 'edk2|vgabios' || true
+echo "==> Verifying install tree (exes at root, firmware in share/)"
+ls "${PREFIX}/qemu-system-x86_64.exe"
+ls "${PREFIX}/share/bios-256k.bin"
+ls "${PREFIX}/share/" | grep -E 'edk2|vgabios' || true
 command -v ccache >/dev/null 2>&1 && ccache --show-stats || true
 echo "Windows build OK"

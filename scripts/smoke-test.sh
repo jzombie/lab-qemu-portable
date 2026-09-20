@@ -4,7 +4,9 @@
 # Env: QEMU_VERSION (expected, optional), PORTABLE_DIR (default ./qemu-portable)
 set -euo pipefail
 DIR="${PORTABLE_DIR:-$PWD/qemu-portable}"
-BIN="$DIR/bin"
+# Unix layout: binaries in bin/. Windows layout: exes at the tree root
+# (upstream bindir=. convention) with DLLs alongside.
+if [[ -d "$DIR/bin" ]]; then BIN="$DIR/bin"; else BIN="$DIR"; fi
 
 fail() { echo "SMOKE-FAIL: $*" >&2; exit 1; }
 
@@ -37,14 +39,20 @@ if [[ -x "$IMG" ]]; then
   "$IMG" info "${TMPDIR:-/tmp}/portable-smoke.qcow2" | grep -q qcow2 || fail "qcow2 probe failed"
 fi
 
-echo "==> firmware presence"
-ls "$DIR/share/qemu/bios-256k.bin" || fail "missing bios-256k.bin"
+echo "==> firmware presence (share/qemu on Unix, share on Windows)"
+if [[ -f "$DIR/share/qemu/bios-256k.bin" ]]; then
+  FW="$DIR/share/qemu/bios-256k.bin"
+elif [[ -f "$DIR/share/bios-256k.bin" ]]; then
+  FW="$DIR/share/bios-256k.bin"
+else
+  fail "missing bios-256k.bin under $DIR/share[/qemu]"
+fi
 
 echo "==> headless SeaBIOS boot probe (TCG, expect timeout=guest ran)"
 if command -v timeout >/dev/null 2>&1; then
   set +e
   timeout 15 "$SYS_X64" -display none -accel tcg -m 256 \
-    -bios "$DIR/share/qemu/bios-256k.bin" -nic none -nographic -snapshot
+    -bios "$FW" -nic none -nographic -snapshot
   rc=$?
   set -e
   [[ $rc -eq 124 ]] || echo "note: probe exited rc=$rc (124=timeout/OK on Linux/mac; Windows timeout.exe differs)"

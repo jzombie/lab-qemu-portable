@@ -11,15 +11,19 @@ DIST_DIR="${DIST_DIR:-$PWD/dist}"
 VER="${QEMU_VERSION:?set QEMU_VERSION}"
 ENV_TAG="${MSYSTEM:-UCRT64}"
 
+# Windows upstream layout (bindir=., datadir=share): exes live in the install
+# ROOT, firmware in ROOT/share. QEMU resolves datadir as <exe-dir>/share, so
+# the portable tree keeps exes + DLLs at $OUT/ root with share/ alongside
+# (same as official portable zips) — NOT bin/share.
 OUT="$PWD/qemu-portable"
 rm -rf "$OUT"
 mkdir -p "$OUT"
-cp -a "${ROOT}/bin" "$OUT/"
+cp -a "${ROOT}/"*.exe "$OUT/"
 cp -a "${ROOT}/share" "$OUT/"
 mkdir -p "$OUT/etc"
 cp -a "${ROOT}/etc/." "$OUT/etc/" 2>/dev/null || true
 
-python3 "${SCRIPT_DIR}/scrub-firmware-json.py" "$OUT/share/qemu"
+python3 "${SCRIPT_DIR}/scrub-firmware-json.py" "$OUT/share"
 
 collect_dlls() {
   local bin="$1" dest="$2"
@@ -31,7 +35,7 @@ collect_dlls() {
 }
 
 # Resolve DLL names to files under MINGW_PREFIX, copy next to exes.
-for exe in "$OUT"/bin/*.exe; do
+for exe in "$OUT"/*.exe; do
   [[ -e "$exe" ]] || continue
   while read -r dll; do
     [[ -n "$dll" ]] || continue
@@ -53,28 +57,28 @@ for exe in "$OUT"/bin/*.exe; do
       found="$(find "${MINGW_PREFIX}/bin" -maxdepth 1 -iname "$base" -print -quit 2>/dev/null || true)"
       [[ -n "$found" ]] && src="$found"
     fi
-    if [[ -n "$src" && -f "$src" && ! -f "$OUT/bin/$(basename "$src")" ]]; then
-      cp -n "$src" "$OUT/bin/"
+    if [[ -n "$src" && -f "$src" && ! -f "$OUT/$(basename "$src")" ]]; then
+      cp -n "$src" "$OUT/"
       echo "bundled $(basename "$src") for $(basename "$exe")"
     fi
-  done < <(collect_dlls "$exe" "$OUT/bin")
+  done < <(collect_dlls "$exe" "$OUT")
 done
 
 # Second pass: transitive deps of bundled DLLs.
 for _ in 1 2 3; do
   changed=0
-  for dll in "$OUT"/bin/*.dll; do
+  for dll in "$OUT"/*.dll; do
     [[ -e "$dll" ]] || continue
     while read -r dep; do
       [[ -n "$dep" ]] || continue
       base="$(basename "$dep" | tr '[:upper:]' '[:lower:]')"
       case "$base" in kernel32.dll|user32.dll|ntdll.dll|msvcrt.dll|ucrtbase.dll|api-ms-*.dll) continue;; esac
-      if [[ ! -f "$OUT/bin/$base" ]]; then
+      if [[ ! -f "$OUT/$base" ]]; then
         found=""
         [[ -n "${MINGW_PREFIX:-}" ]] && found="$(find "${MINGW_PREFIX}/bin" -maxdepth 1 -iname "$base" -print -quit 2>/dev/null || true)"
-        if [[ -n "$found" ]]; then cp -n "$found" "$OUT/bin/"; changed=1; fi
+        if [[ -n "$found" ]]; then cp -n "$found" "$OUT/"; changed=1; fi
       fi
-    done < <(collect_dlls "$dll" "$OUT/bin")
+    done < <(collect_dlls "$dll" "$OUT")
   done
   [[ "$changed" == "0" ]] && break
 done
@@ -82,10 +86,10 @@ done
 echo "$VER" > "$OUT/VERSION.txt"
 cat > "$OUT/README.portable.txt" <<EOF
 QEMU ${VER} portable (Windows x64 ${ENV_TAG}, SDL-only, no GTK).
-Run: bin\\qemu-system-x86_64.exe --version
-WHPX: bin\\qemu-system-x86_64.exe -accel whpx -nographic
-Headless: bin\\qemu-system-x86_64.exe -display none -nographic
-No install/admin needed. DLLs are bundled side-by-side in bin\\.
+Run: qemu-system-x86_64.exe --version
+WHPX: qemu-system-x86_64.exe -accel whpx -nographic
+Headless: qemu-system-x86_64.exe -display none -nographic
+No install/admin needed. DLLs are bundled side-by-side with the exes.
 EOF
 
 mkdir -p "$DIST_DIR"

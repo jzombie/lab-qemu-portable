@@ -10,7 +10,7 @@ Portable, zero-install QEMU builds for Windows, Linux, and macOS — downloaded 
 
 | Runner | Artifact | Contents |
 |---|---|---|
-| `windows-latest` (MSYS2 UCRT64) | `qemu-portable-win-x64-UCRT64-<ver>.zip` | `bin/qemu-system-*.exe` + bundled DLLs side-by-side + `share/qemu` |
+| `windows-latest` (MSYS2 UCRT64) | `qemu-portable-win-x64-UCRT64-<ver>.zip` | `qemu-system-*.exe` + DLLs at zip root + `share/` (upstream Windows layout: bindir=., datadir=share) |
 | `ubuntu-24.04` in `debian:12` container | `qemu-portable-linux-x86_64-<ver>.tar.xz` | `bin/qemu-system-*`, `bin/qemu-img`, `share/qemu` (Debian 12 glibc floor) |
 | `ubuntu-24.04-arm` in `debian:12` container | `qemu-portable-linux-aarch64-<ver>.tar.xz` | same, arm64 host |
 | `macos-15` (arm64) | `qemu-portable-macos-arm64-<ver>.tar.gz` | same, arm64 host (Intel Macs unsupported — legacy platform, no GHA runner) |
@@ -30,7 +30,7 @@ tar -xf qemu-portable-linux-*.tar.xz   # or unzip / tar -xzf per OS
   -usb -device usb-tablet -display none -nographic
 
 # macOS: replace -accel kvm with -accel hvf
-# Windows: bin\qemu-system-x86_64.exe -accel whpx -nographic
+# Windows (exes at zip root): qemu-system-x86_64.exe -accel whpx -nographic
 ```
 
 Linux runtime deps (usually preinstalled; Debian 12 floor covers Ubuntu 22.04+):
