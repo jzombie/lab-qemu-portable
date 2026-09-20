@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Shared smoke test. Runs against a packaged portable tree (./qemu-portable)
-# or an install prefix. No KVM/HVF/WHPX required (uses TCG for boot probe).
+# Shared smoke test. The NATIVE-arch emulator gets full checks (version,
+# accel, boot probe); the cross-arch emulator gets a --version load check
+# only (--version proves the loader + bundled dylibs/DLLs resolve, which is
+# the failure mode that matters for a shipped-but-foreign binary).
+# No KVM/HVF/WHPX required (TCG boot probe).
+# Every guest binary invocation goes through with_timeout: first launch of an
+# adhoc-signed binary on macOS can stall for minutes in Gatekeeper assessment,
+# and a stall must fail loudly instead of hanging the job silently.
 # Env: QEMU_VERSION (expected, optional), PORTABLE_DIR (default ./qemu-portable)
 set -euo pipefail
 DIR="${PORTABLE_DIR:-$PWD/qemu-portable}"
@@ -10,6 +16,22 @@ if [[ -d "$DIR/bin" ]]; then BIN="$DIR/bin"; else BIN="$DIR"; fi
 
 fail() { echo "SMOKE-FAIL: $*" >&2; exit 1; }
 
+# Portable hard-timeout wrapper (macOS has no `timeout` command).
+# Usage: with_timeout <seconds> <cmd...>. Boot probes accept rc 124 (GNU
+# timeout) or 137 (SIGKILL from this wrapper) as "guest ran past timeout".
+with_timeout() {
+  local t="$1"; shift
+  "$@" &
+  local pid=$!
+  ( sleep "$t" && kill -9 "$pid" 2>/dev/null ) &
+  local killer=$!
+  local rc=0
+  wait "$pid" 2>/dev/null || rc=$?
+  kill "$killer" 2>/dev/null || true
+  wait "$killer" 2>/dev/null || true
+  return "$rc"
+}
+
 SYS_X64="$BIN/qemu-system-x86_64"
 [[ -x "$SYS_X64" ]] || SYS_X64="$SYS_X64.exe"
 SYS_A64="$BIN/qemu-system-aarch64"
@@ -17,61 +39,76 @@ SYS_A64="$BIN/qemu-system-aarch64"
 IMG="$BIN/qemu-img"
 [[ -x "$IMG" ]] || IMG="$IMG.exe"
 
-[[ -x "$SYS_X64" ]] || fail "missing $BIN/qemu-system-x86_64 (lean builds ship both emulators on every host)"
-
-# Primary = native-arch emulator (reads naturally in logs: aarch64 checks on
-# arm64 hosts, x86_64 on Intel). The cross-arch emulator is checked after.
+# Native emulator for this host gets the full checks.
 case "$(uname -m)" in
-  arm64|aarch64) PRIMARY="$SYS_A64"; SECONDARY="$SYS_X64" ;;
-  *) PRIMARY="$SYS_X64"; SECONDARY="$SYS_A64" ;;
+  arm64|aarch64) NATIVE="$SYS_A64"; CROSS="$SYS_X64" ;;
+  *) NATIVE="$SYS_X64"; CROSS="$SYS_A64" ;;
 esac
-[[ -x "$PRIMARY" ]] || PRIMARY="$SYS_X64"
+[[ -x "$NATIVE" ]] || fail "missing native emulator for $(uname -m)"
 
-echo "==> $PRIMARY --version"
-"$PRIMARY" --version
-if [[ -n "${QEMU_VERSION:-}" ]]; then
-  "$PRIMARY" --version | grep -q "$QEMU_VERSION" || fail "version mismatch (want $QEMU_VERSION)"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  # Drop any quarantine bits from the downloaded/built tree; they force a
+  # (sometimes stalling) Gatekeeper assessment on first exec.
+  xattr -cr "$DIR" 2>/dev/null || true
 fi
-if [[ -x "$SECONDARY" && "$SECONDARY" != "$PRIMARY" ]]; then
-  echo "==> $SECONDARY --version"
-  "$SECONDARY" --version
+
+echo "==> $NATIVE --version"
+ver_out="$(with_timeout 120 "$NATIVE" --version)" || fail "$NATIVE --version failed (rc=$?)"
+echo "$ver_out"
+if [[ -n "${QEMU_VERSION:-}" ]]; then
+  grep -q "$QEMU_VERSION" <<<"$ver_out" || fail "version mismatch (want $QEMU_VERSION)"
 fi
 
 echo "==> accel help"
-"$PRIMARY" -accel help | grep -Ei 'tcg|kvm|hvf|whpx' || fail "no accel backend listed"
+accel_out="$(with_timeout 120 "$NATIVE" -accel help)" || fail "$NATIVE -accel help failed (rc=$?)"
+grep -Ei 'tcg|kvm|hvf|whpx' <<<"$accel_out" || fail "no accel backend listed"
+
+# Cross-arch emulator: --version only (load check, no boot).
+if [[ -x "$CROSS" && "$CROSS" != "$NATIVE" ]]; then
+  echo "==> $CROSS --version (cross-arch load check only)"
+  with_timeout 120 "$CROSS" --version || fail "cross-arch emulator failed to start (rc=$?)"
+fi
 
 if [[ -x "$SYS_A64" ]]; then
   echo "==> aarch64 -M help"
-  "$SYS_A64" -M help | grep -q virt || fail "aarch64 miss virt machine"
+  m_out="$(with_timeout 120 "$SYS_A64" -M help)" || fail "aarch64 -M help failed (rc=$?)"
+  grep -q virt <<<"$m_out" || fail "aarch64 missing virt machine"
 fi
 
 if [[ -x "$IMG" ]]; then
   echo "==> qemu-img create/info"
-  rm -f /tmp/portable-smoke.qcow2 ./portable-smoke.qcow2
-  "$IMG" create -f qcow2 "${TMPDIR:-/tmp}/portable-smoke.qcow2" 64M
-  "$IMG" info "${TMPDIR:-/tmp}/portable-smoke.qcow2" | grep -q qcow2 || fail "qcow2 probe failed"
+  rm -f ./portable-smoke.qcow2
+  with_timeout 120 "$IMG" create -f qcow2 "${TMPDIR:-/tmp}/portable-smoke.qcow2" 64M \
+    || fail "qemu-img create failed (rc=$?)"
+  info_out="$(with_timeout 120 "$IMG" info "${TMPDIR:-/tmp}/portable-smoke.qcow2")" \
+    || fail "qemu-img info failed (rc=$?)"
+  grep -q qcow2 <<<"$info_out" || fail "qcow2 probe failed"
 fi
 
 echo "==> firmware presence (share/qemu on Unix, share on Windows)"
-if [[ -f "$DIR/share/qemu/bios-256k.bin" ]]; then
-  FW="$DIR/share/qemu/bios-256k.bin"
-elif [[ -f "$DIR/share/bios-256k.bin" ]]; then
-  FW="$DIR/share/bios-256k.bin"
-else
-  fail "missing bios-256k.bin under $DIR/share[/qemu]"
-fi
+FWDIR=""
+if [[ -d "$DIR/share/qemu" ]]; then FWDIR="$DIR/share/qemu"
+elif [[ -d "$DIR/share" ]]; then FWDIR="$DIR/share"
+else fail "missing $DIR/share[/qemu]"; fi
 
-echo "==> headless SeaBIOS boot probe (TCG, expect timeout=guest ran)"
-if command -v timeout >/dev/null 2>&1; then
+echo "==> headless boot probe, native emulator (TCG, expect timeout=guest ran)"
+if [[ "$NATIVE" == "$SYS_X64" ]]; then
+  [[ -f "$FWDIR/bios-256k.bin" ]] || fail "missing bios-256k.bin"
   set +e
-  timeout 15 "$SYS_X64" -display none -accel tcg -m 256 \
-    -bios "$FW" -nic none -nographic -snapshot
+  with_timeout 15 "$NATIVE" -display none -accel tcg -m 256 \
+    -bios "$FWDIR/bios-256k.bin" -nic none -nographic -snapshot
   rc=$?
   set -e
-  [[ $rc -eq 124 ]] || echo "note: probe exited rc=$rc (124=timeout/OK on Linux/mac; Windows timeout.exe differs)"
 else
-  echo "skip boot probe (no timeout cmd)"
+  [[ -f "$FWDIR/edk2-aarch64-code.fd" ]] || fail "missing edk2-aarch64-code.fd"
+  set +e
+  with_timeout 20 "$NATIVE" -display none -accel tcg -m 256 -M virt \
+    -drive if=pflash,format=raw,readonly=on,file="$FWDIR/edk2-aarch64-code.fd" \
+    -nic none -nographic -snapshot
+  rc=$?
+  set -e
 fi
+[[ $rc -eq 124 || $rc -eq 137 ]] || echo "note: probe exited rc=$rc (124/137=timeout/OK)"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "==> codesign verify"
