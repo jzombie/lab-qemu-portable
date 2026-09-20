@@ -1,5 +1,7 @@
 # lab-qemu-portable
 
+**WORK IN PROGRESS; DEBUGGING AT THE MOMENT**
+
 Portable, zero-install QEMU builds for Windows, Linux, and macOS — downloaded from the latest stable source (`download.qemu.org`) and built via GitHub Actions.
 
 > **Portable = folder distributions (ZIP/TAR), not single-file executables.** QEMU needs its `share/qemu/` firmware blobs (SeaBIOS `bios-256k.bin`, UEFI `edk2-*-code.fd`, vgabios, keymaps) adjacent to the binary, plus dynamically-linked accel/runtime libs (KVM/HVF/WHPX, glib, slirp, SDL). Static single-file linking is unsupported upstream for these paths.
