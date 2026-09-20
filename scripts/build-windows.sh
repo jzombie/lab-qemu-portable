@@ -3,11 +3,15 @@
 # Invoked with `shell: msys2 {0}`. SDL-only UI (no GTK).
 # Env: QEMU_VERSION, TARGETS_MODE (lean|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
 set -euo pipefail
-# MSYS2 auto-converts POSIX-looking args (e.g. --prefix=/qemu-portable) into
-# Windows paths rooted at the ephemeral MSYS2 install dir (D:\a\_temp\msys64),
-# which corrupts configure's prefix and DESTDIR staging. Disable it: all paths
-# in this script are POSIX and consumed by MSYS/mingw tools that handle them.
-export MSYS2_ARG_CONV_EXCL="*"
+# MSYS2 auto-converts POSIX-looking args into Windows paths. That must be
+# suppressed ONLY for --prefix/--sysconfdir: `/qemu-portable` would otherwise
+# be rooted at the ephemeral MSYS2 install dir (D:\a\_temp\msys64), corrupting
+# the install tree. Everything else keeps default conversion: the native
+# Windows python running mkvenv.py (and mingw gcc) needs real source/build
+# paths converted to D:/a/... form. (A blanket MSYS2_ARG_CONV_EXCL="*" breaks
+# mkvenv with 'D:/d/a/... not found': native python resolves the unconverted
+# POSIX path drive-relative.)
+export MSYS2_ARG_CONV_EXCL="--prefix=;--sysconfdir="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/build-common.sh"
