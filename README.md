@@ -52,8 +52,9 @@ Per-OS notes:
 2. Click **Run workflow** (right side) → set the inputs:
    - `qemu_version`: `auto` (find the newest stable release by itself), or a specific version like `X.Y.Z` to pin a build.
    - `targets`: `native`, `both`, or `all` (see table above).
-3. Click the green **Run workflow** button. Four build jobs start (Windows x64, Linux x64, Linux ARM64, macOS ARM64); each takes roughly 10–40 minutes.
-4. When all four succeed, a **Release portable binaries** job attaches the archives to a new GitHub Release named after the QEMU version, with a `SHA256SUMS.txt` checksum file.
+   - `platforms`: `all`, or a comma-separated subset to iterate cheaply — e.g. `macos-arm64`. Valid names: `win-x64`, `linux-x64`, `linux-arm64`, `macos-arm64`. Subset runs upload artifacts but never publish a release.
+3. Click the green **Run workflow** button. Each selected platform takes roughly 10–40 minutes.
+4. When all selected platforms succeed, a **Release portable binaries** job (full-matrix runs only) attaches the archives to a new GitHub Release named after the QEMU version, with a `SHA256SUMS.txt` checksum file.
 
 Other triggers, all automatic, no setup needed:
 

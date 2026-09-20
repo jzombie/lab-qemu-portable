@@ -20,6 +20,11 @@ on:
         default: "native"
         type: choice
         options: [native, both, all]
+      platforms:
+        description: "'all' or comma-separated subset to build: win-x64,linux-x64,linux-arm64,macos-arm64 (e.g. 'macos-arm64' to iterate on one leg)"
+        required: false
+        default: "all"
+        type: string
   schedule:
     - cron: "0 6 * * 1" # weekly Monday version check
   release:
@@ -53,37 +58,60 @@ jobs:
           name: qemu-tarball
           path: qemu-*.tar.xz*
 
+  setup:
+    name: Select platforms
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        env:
+          WANT: ${{ inputs.platforms || 'all' }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          # NOTE: macos-x64 (Intel) intentionally omitted: Apple Silicon is the
+          # current platform; Intel GHA runners are legacy/slowest (brew builds
+          # glib etc. from source, 30-60+ min leg). build-macos.sh stays
+          # arch-agnostic, so the leg can be re-added if demand appears.
+          entries = {
+            "win-x64": {"name": "win-x64-ucrt64", "os": "windows-latest",
+                        "msystem": "UCRT64",
+                        "build_script": "scripts/build-windows.sh",
+                        "package_script": "scripts/package-windows.sh"},
+            "linux-x64": {"name": "linux-x64", "os": "ubuntu-24.04",
+                          "container": "debian:12",
+                          "build_script": "scripts/build-linux.sh",
+                          "package_script": "scripts/package-linux.sh"},
+            "linux-arm64": {"name": "linux-arm64", "os": "ubuntu-24.04-arm",
+                            "container": "debian:12",
+                            "build_script": "scripts/build-linux.sh",
+                            "package_script": "scripts/package-linux.sh"},
+            "macos-arm64": {"name": "macos-arm64", "os": "macos-15",
+                            "build_script": "scripts/build-macos.sh",
+                            "package_script": "scripts/package-macos.sh"},
+          }
+          want = os.environ.get("WANT", "all").strip().lower()
+          if want in ("", "all"):
+              sel = list(entries.values())
+          else:
+              keys = [k.strip() for k in want.split(",")]
+              unknown = [k for k in keys if k not in entries]
+              if unknown:
+                  raise SystemExit(f"unknown platform(s): {unknown}; valid: {sorted(entries)}")
+              sel = [entries[k] for k in keys]
+          # Entries without a container key get none (matrix.container unset).
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("matrix=" + json.dumps({"include": sel}) + "\n")
+          print("selected:", [e["name"] for e in sel])
+          EOF
+
   build:
     name: build (${{ matrix.name }})
-    needs: [resolve]
+    needs: [resolve, setup]
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: win-x64-ucrt64
-            os: windows-latest
-            msystem: UCRT64
-            build_script: scripts/build-windows.sh
-            package_script: scripts/package-windows.sh
-          - name: linux-x64
-            os: ubuntu-24.04
-            container: debian:12
-            build_script: scripts/build-linux.sh
-            package_script: scripts/package-linux.sh
-          - name: linux-arm64
-            os: ubuntu-24.04-arm
-            container: debian:12
-            build_script: scripts/build-linux.sh
-            package_script: scripts/package-linux.sh
-          - name: macos-arm64
-            os: macos-15
-            build_script: scripts/build-macos.sh
-            package_script: scripts/package-macos.sh
-          # NOTE: macos-x64 (Intel) intentionally omitted: Apple Silicon is the
-          # current platform, Intel GHA runners are legacy/slowest in the matrix
-          # (brew builds glib etc. from source, 30-60+ min leg), and Intel Macs
-          # cannot run Intel guests with HVF under Rosetta anyway. build-macos.sh
-          # is arch-agnostic, so the leg can be re-added if demand appears.
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container || null }}
     # Lean QEMU build: ~15 min (Linux) to ~40 min (Intel macOS). Fail fast on
@@ -189,7 +217,10 @@ jobs:
   release:
     name: Release portable binaries
     needs: [resolve, build]
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    # Only publish complete sets: tags, schedule, pushes, or manual runs that
+    # built ALL platforms. Subset runs (platforms=macos-arm64, ...) are for
+    # iteration and stop at artifacts.
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'schedule' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.platforms == 'all' || inputs.platforms == ''))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -214,5 +245,5 @@ jobs:
             - Full (`targets=all`): all softmmu emulators (FreeBSD/other arches).
             - Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via `-display none -nographic`.
             - Layout: extract the archive and run `./qemu-portable/bin/qemu-system-x86_64 --version`. No installer/admin needed.
-            - Linux built on Debian 12 glibc floor; macOS adhoc-signed for local HVF (`xattr -d com.apple.quarantine` may be needed after download); Windows is SDL-only (no GTK assets), DLLs bundled in `bin/`.
+            - Linux built on Debian 12 glibc floor; macOS adhoc-signed for local HVF (`xattr -d com.apple.quarantine` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root.
           files: dist/*
