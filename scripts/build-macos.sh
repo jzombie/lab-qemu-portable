@@ -13,8 +13,8 @@ STAGE_DIR="${STAGE_DIR:-$PWD/stage}"
 echo "==> Host: $(uname -m) / $(sw_vers -productVersion)"
 echo "==> Installing macOS build deps (Homebrew)"
 brew update
-brew install glib pixman libslirp meson ninja pkgconf python capstone dtc \
-  sdl2 libusb jpeg-turbo libpng snappy zstd ccache || brew upgrade glib pixman libslirp meson ninja pkgconf python capstone dtc sdl2 libusb jpeg-turbo libpng snappy zstd ccache
+brew install glib pixman libslirp meson ninja pkgconf python capstone \
+  sdl2 libusb jpeg-turbo libpng snappy zstd ccache || brew upgrade glib pixman libslirp meson ninja pkgconf python capstone sdl2 libusb jpeg-turbo libpng snappy zstd ccache
 
 if command -v ccache >/dev/null 2>&1; then
   export CC="ccache clang" CXX="ccache clang++"

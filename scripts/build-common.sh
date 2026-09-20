@@ -32,7 +32,7 @@ CONFIGURE_ARGS=(
   --disable-bsd-user
   --enable-slirp
   --enable-capstone
-  --enable-fdt=system
+  --enable-fdt=internal
   --disable-werror
   --disable-docs
   --enable-vnc

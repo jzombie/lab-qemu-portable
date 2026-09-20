@@ -15,7 +15,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
   bash bc bison ca-certificates ccache flex gcc git libc6-dev \
-  libcapstone-dev libdtc-dev libffi-dev libglib2.0-dev libpixman-1-dev \
+  libcapstone-dev libffi-dev libglib2.0-dev libpixman-1-dev \
   libslirp-dev libsdl2-dev libusb-1.0-0-dev libseccomp-dev libcap-ng-dev \
   zlib1g-dev make meson ninja-build pkgconf python3 python3-venv \
   python3-pip python3-setuptools python3-wheel \

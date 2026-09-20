@@ -17,6 +17,8 @@ pacman -S --noconfirm --needed \
   base-devel git python ninja \
   "${MINGW_PACKAGE_PREFIX}-ntldd" \
   "${MINGW_PACKAGE_PREFIX}-toolchain" \
+  "${MINGW_PACKAGE_PREFIX}-capstone" \
+  "${MINGW_PACKAGE_PREFIX}-ncurses" \
   "${MINGW_PACKAGE_PREFIX}-glib2" \
   "${MINGW_PACKAGE_PREFIX}-pixman" \
   "${MINGW_PACKAGE_PREFIX}-libslirp" \
