@@ -22,6 +22,9 @@ fail() { echo "SMOKE-FAIL: $*" >&2; exit 1; }
 # process first, so the log shows WHERE it hung (Gatekeeper/trustd vs QEMU).
 diagnose_hang() {
   local pid="$1"
+  # Boot probes are SUPPOSED to run until timeout (running guest) — diagnosing
+  # those prints scary noise on green runs. Only diagnose unexpected stalls.
+  [[ "${WITH_TIMEOUT_DIAGNOSE:-1}" == "1" ]] || return 0
   [[ "$(uname -s)" == "Darwin" ]] || return 0
   echo "--- hang diagnostics for pid $pid ---" >&2
   ps -p "$pid" -o pid,ppid,stat,etime,command >&2 2>/dev/null || true
@@ -102,6 +105,8 @@ elif [[ -d "$DIR/share" ]]; then FWDIR="$DIR/share"
 else fail "missing $DIR/share[/qemu]"; fi
 
 echo "==> headless boot probe, native emulator (TCG, expect timeout=guest ran)"
+# Expected to time out: diagnostics stay off for this call.
+export WITH_TIMEOUT_DIAGNOSE=0
 if [[ "$NATIVE" == *"x86_64"* ]]; then
   [[ -f "$FWDIR/bios-256k.bin" ]] || fail "missing bios-256k.bin"
   set +e
