@@ -186,7 +186,7 @@ EOF
 wimlib ${VER} portable (Linux ${ARCH}, Debian 12 glibc floor).
 Layout: bin/wimlib-imagex (+ libwim shared libs).
 No install needed: ./bin/wimlib-imagex --version
-Runtime deps (usually preinstalled): libntfs-3g88 libxml2 libssl3
+Runtime deps (usually preinstalled): libxml2 libssl3
 Overlays onto qemu-portable: copy bin/wimlib-imagex next to qemu binaries.
 EOF
     echo "$VER" > "$OUT/VERSION"

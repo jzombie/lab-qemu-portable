@@ -30,7 +30,6 @@ case "$OS" in
     pacman -S --noconfirm --needed \
       base-devel \
       "${MINGW_PACKAGE_PREFIX}-toolchain" \
-      "${MINGW_PACKAGE_PREFIX}-ntfs-3g" \
       "${MINGW_PACKAGE_PREFIX}-libxml2" \
       "${MINGW_PACKAGE_PREFIX}-openssl" \
       "${MINGW_PACKAGE_PREFIX}-ccache"
@@ -42,7 +41,7 @@ case "$OS" in
     rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-    "${SRC_DIR}/configure" --prefix="$PREFIX" --without-fuse
+    "${SRC_DIR}/configure" --prefix="$PREFIX" --without-fuse --without-ntfs-3g
     echo "==> Building (-j${NPROC})"
     make -j"${NPROC}"
     echo "==> Installing to ${PREFIX}"
@@ -58,8 +57,8 @@ case "$OS" in
     echo "==> Host: $(uname -m) / $(sw_vers -productVersion)"
     echo "==> Installing wimlib build deps (Homebrew)"
     brew update
-    brew install ntfs-3g libxml2 openssl@3 ccache \
-      || brew upgrade ntfs-3g libxml2 openssl@3 ccache
+    brew install libxml2 openssl@3 ccache \
+      || brew upgrade libxml2 openssl@3 ccache
     if command -v ccache >/dev/null 2>&1; then
       export CC="ccache clang" CXX="ccache clang++"
       ccache --zero-stats || true
@@ -68,7 +67,7 @@ case "$OS" in
     rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-    "${SRC_DIR}/configure" --prefix="$PREFIX" --without-fuse
+    "${SRC_DIR}/configure" --prefix="$PREFIX" --without-fuse --without-ntfs-3g
     echo "==> Building (-j${NPROC})"
     make -j"${NPROC}"
     echo "==> Installing to DESTDIR=${STAGE_DIR}"
@@ -85,7 +84,7 @@ case "$OS" in
     apt-get update
     apt-get install -y --no-install-recommends \
       bash bzip2 ca-certificates ccache gcc g++ git make \
-      libntfs-3g-dev libxml2-dev libssl-dev \
+      libxml2-dev libssl-dev \
       tar xz-utils curl file pkgconf
     if command -v ccache >/dev/null 2>&1; then
       export CC="ccache gcc" CXX="ccache g++"
@@ -95,7 +94,7 @@ case "$OS" in
     rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-    "${SRC_DIR}/configure" --prefix="$PREFIX" --without-fuse
+    "${SRC_DIR}/configure" --prefix="$PREFIX" --without-fuse --without-ntfs-3g
     echo "==> Building (-j${NPROC})"
     make -j"${NPROC}"
     echo "==> Installing to DESTDIR=${STAGE_DIR}"
