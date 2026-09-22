@@ -4,6 +4,7 @@ Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib]
 
 - **QEMU** (`qemu-vX.Y.Z` releases): system emulator matching the host CPU + `qemu-img` disk tool + firmware (SeaBIOS, EDK2, vgabios). Hardware acceleration per OS: KVM (Linux), HVF (macOS), WHPX (Windows), TCG fallback everywhere.
 - **wimlib** (`wimlib-vX.Y.Z` releases): `wimlib-imagex` WIM capture/apply tool + its libs. Overlays onto a QEMU tree (drop `bin/wimlib-imagex` next to the QEMU binaries).
+- **virtio-win driver pack** (`drivers-YYYYMMDD` releases): verified mirror of the Fedora `virtio-win.iso` (rsynced from `stable-virtio`, SHA256-checked). Attach as a second cdrom for headless Windows installs alongside the installer ISO and your `Autounattend.xml` drive.
 
 > **Portable = folders, not single-file exes.** Firmware data files must sit next to the binary, plus dynamically-linked accel/runtime libs. Static single-file linking is unsupported upstream for these paths.
 
@@ -55,6 +56,7 @@ A release publishes only on full-matrix runs for a new upstream version (or `for
 ```
 .github/workflows/build-qemu.yml    # QEMU: resolve -> 4-platform matrix -> release
 .github/workflows/build-wimlib.yml  # wimlib: same shape, own tags/artifacts (never triggers QEMU)
+.github/workflows/mirror-drivers.yml # weekly verified virtio-win ISO mirror (drivers-* tags)
 config/hvf-entitlements.plist       # macOS hypervisor entitlement for re-signing
 scripts/resolve-*.sh                # pick latest (or pinned) upstream version + download tarball
 scripts/build-{linux,macos,windows}.sh   # QEMU per-OS builds
@@ -62,4 +64,5 @@ scripts/build-wimlib.sh             # wimlib per-OS build (pinned source, all le
 scripts/package-*.sh                # portable trees: dylib/DLL bundling, path rewrite, re-sign
 scripts/smoke-*.sh                  # version/accel/firmware/boot checks per build
 scripts/scrub-firmware-json.py      # make firmware descriptors location-independent
+scripts/mirror-virtio.sh            # rsync virtio-win ISO + ISO-magic/sha256 verify
 ```
