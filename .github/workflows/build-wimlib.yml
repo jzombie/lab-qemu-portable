@@ -270,7 +270,7 @@ jobs:
           name: wimlib ${{ needs.resolve.outputs.version }} portable
           body: |
             Portable zero-install wimlib ${{ needs.resolve.outputs.version }} (wimlib-imagex + bundled libs).
-            Overlays onto qemu-portable: copy `bin/wimlib-imagex` (Linux/macOS) or `wimlib-imagex.exe` (Windows, extracted folder root — no `bin/`) next to the qemu binaries.
+            Overlays onto qemu-portable: copy `bin/wimlib-imagex` (Linux/macOS) or `wimlib-imagex.exe` (Windows, extracted folder root with no `bin/`) next to the qemu binaries.
             Built from pinned source (https://wimlib.net/downloads); no admin/install needed.
             macOS adhoc-signed (`xattr -cr` may be needed after download).
             Each archive ships with a `BUILD-INFO-wimlib-<platform>.txt` provenance record.
