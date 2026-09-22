@@ -13,6 +13,15 @@ on:
       - "scripts/build-wimlib.sh"
       - "scripts/package-wimlib.sh"
       - "scripts/smoke-wimlib.sh"
+  pull_request:
+    paths:
+      - ".github/workflows/build-wimlib.yml"
+      - "scripts/resolve-wimlib.sh"
+      - "scripts/build-wimlib.sh"
+      - "scripts/package-wimlib.sh"
+      - "scripts/smoke-wimlib.sh"
+      - "scripts/package-macos.sh"
+      - "scripts/smoke-test.sh"
   workflow_dispatch:
     inputs:
       wimlib_version:
@@ -114,8 +123,10 @@ jobs:
                   raise SystemExit(f"unknown platform(s): {unknown}; valid: {sorted(entries)}")
               sel = [entries[k] for k in keys]
           full = want in ("", "all")
-          publish = full and (os.environ.get("IS_NEW") == "true"
-                              or os.environ.get("FORCE", "").lower() == "true")
+          # PR builds never publish (artifacts only); same for subset runs.
+          publish = (full and os.environ.get("EVENT") != "pull_request"
+                     and (os.environ.get("IS_NEW") == "true"
+                          or os.environ.get("FORCE", "").lower() == "true"))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write("matrix=" + json.dumps({"include": sel}) + "\n")
               f.write(f"publish={'true' if publish else 'false'}\n")
