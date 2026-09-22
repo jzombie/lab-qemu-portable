@@ -20,8 +20,6 @@ on:
       - "scripts/build-wimlib.sh"
       - "scripts/package-wimlib.sh"
       - "scripts/smoke-wimlib.sh"
-      - "scripts/package-macos.sh"
-      - "scripts/smoke-test.sh"
   workflow_dispatch:
     inputs:
       wimlib_version:

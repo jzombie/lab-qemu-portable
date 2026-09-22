@@ -130,17 +130,4 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   codesign --verify --verbose "$NATIVE" || fail "codesign verify failed for $NATIVE"
 fi
 
-# Optional wimlib probe: passes silently when absent (QEMU-only trees),
-# verifies --version when a combined tree ships bin/wimlib-imagex.
-WIMLIB="$BIN/wimlib-imagex"
-[[ -x "$WIMLIB" ]] || WIMLIB="$WIMLIB.exe"
-if [[ -x "$WIMLIB" ]]; then
-  echo "==> wimlib-imagex --version (optional, present in tree)"
-  with_timeout 60 "$WIMLIB" --version || fail "wimlib-imagex --version failed (rc=$?)"
-  if [[ -n "${WIMLIB_VERSION:-}" ]]; then
-    with_timeout 60 "$WIMLIB" --version | grep -q "$WIMLIB_VERSION" \
-      || fail "wimlib version mismatch (want $WIMLIB_VERSION)"
-  fi
-fi
-
 echo "SMOKE-OK"
