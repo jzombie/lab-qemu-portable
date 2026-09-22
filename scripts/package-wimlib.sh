@@ -95,7 +95,7 @@ case "$OS" in
     cat > "$OUT/README.portable.txt" <<EOF
 wimlib ${VER} portable (Windows x64 ${ENV_TAG}).
 Run: wimlib-imagex.exe --version
-Overlays onto qemu-portable: copy bin/wimlib-imagex next to qemu exes, or keep as its own folder.
+Overlays onto qemu-portable: copy wimlib-imagex.exe next to the qemu exes (same folder, no bin/), or keep as its own folder.
 EOF
     mkdir -p "$DIST_DIR"
     PKG="${DIST_DIR}/wimlib-portable-win-x64-${ENV_TAG}-${VER}.zip"
