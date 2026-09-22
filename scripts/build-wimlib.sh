@@ -85,7 +85,7 @@ case "$OS" in
     apt-get install -y --no-install-recommends \
       bash bzip2 ca-certificates ccache gcc g++ git make \
       libxml2-dev libssl-dev \
-      tar xz-utils curl file pkgconf
+      tar xz-utils curl file pkgconf patchelf
     if command -v ccache >/dev/null 2>&1; then
       export CC="ccache gcc" CXX="ccache g++"
       ccache --zero-stats || true
@@ -100,6 +100,16 @@ case "$OS" in
     echo "==> Installing to DESTDIR=${STAGE_DIR}"
     make install DESTDIR="${STAGE_DIR}"
     ls "${STAGE_DIR}${PREFIX}/bin/wimlib-imagex"
+    # The install bakes an absolute rpath ($PREFIX/lib) that won't exist at
+    # runtime. Point it at the sibling lib dir so the tree is relocatable.
+    echo "==> Setting portable rpath (\$ORIGIN/../lib)"
+    patchelf --set-rpath '$ORIGIN/../lib' "${STAGE_DIR}${PREFIX}/bin/wimlib-imagex"
+    readelf -d "${STAGE_DIR}${PREFIX}/bin/wimlib-imagex" | grep -i -E 'rpath|runpath' || true
+    if ldd "${STAGE_DIR}${PREFIX}/bin/wimlib-imagex" | grep -q "not found"; then
+      echo "error: unresolved shared libs after rpath fix:" >&2
+      ldd "${STAGE_DIR}${PREFIX}/bin/wimlib-imagex" >&2 || true
+      exit 1
+    fi
     ;;
 esac
 

@@ -20,8 +20,14 @@ case "$OS" in
     ROOT="$PWD/wimlib-install"
     ENV_TAG="${MSYSTEM:-UCRT64}"
     mkdir -p "$OUT"
-    cp -a "${ROOT}/"bin/*.exe "$OUT/" 2>/dev/null \
-      || cp -a "${ROOT}/"*.exe "$OUT/"
+    # libtool installs wimlib's own DLLs (libwim) into prefix bin/ next to the
+    # exes — copy the whole bin dir so private DLLs ship. MINGW third-party
+    # DLLs (libxml2, openssl, …) follow via the ntldd/objdump pass below.
+    if [[ -d "${ROOT}/bin" ]]; then
+      cp -a "${ROOT}/bin/." "$OUT/"
+    else
+      cp -a "${ROOT}/"*.exe "$OUT/"
+    fi
     collect_dlls() {
       local bin="$1"
       if command -v ntldd >/dev/null 2>&1; then
@@ -60,6 +66,31 @@ case "$OS" in
       done
       [[ "$changed" == "0" ]] && break
     done
+    # Verify closure: every non-system dep of every exe/dll must sit beside it,
+    # otherwise first launch hangs on a missing-DLL popup in headless CI.
+    missing=0
+    for bin in "$OUT"/*.exe "$OUT"/*.dll; do
+      [[ -e "$bin" ]] || continue
+      while read -r dep; do
+        [[ -n "$dep" ]] || continue
+        base="$(basename "$dep" | tr '[:upper:]' '[:lower:]')"
+        case "$base" in
+          kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|\
+          ws2_32.dll|winmm.dll|secur32.dll|crypt32.dll|bcrypt.dll|msvcrt.dll|ucrtbase.dll|\
+          api-ms-*.dll|ext-ms-*.dll|ntdll.dll|comctl32.dll|comdlg32.dll|setupapi.dll|\
+          dwmapi.dll|imm32.dll|version.dll|shlwapi.dll|psapi.dll|iphlpapi.dll|dnsapi.dll|\
+          winhttp.dll|wintrust.dll|wevtapi.dll|powrprof.dll|dxgi.dll|d3d11.dll) continue;;
+        esac
+        if [[ ! -f "$OUT/$base" ]]; then
+          found="$(find "$OUT" -maxdepth 1 -iname "$base" -print -quit 2>/dev/null || true)"
+          if [[ -z "$found" ]]; then
+            echo "ERROR: $(basename "$bin") needs $base — not bundled" >&2
+            missing=1
+          fi
+        fi
+      done < <(collect_dlls "$bin")
+    done
+    [[ "$missing" == "0" ]] || { echo "DLL closure incomplete" >&2; exit 1; }
     echo "$VER" > "$OUT/VERSION.txt"
     cat > "$OUT/README.portable.txt" <<EOF
 wimlib ${VER} portable (Windows x64 ${ENV_TAG}).
