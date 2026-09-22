@@ -1,6 +1,6 @@
 # lab-qemu-portable
 
-Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib](https://wimlib.net)** for Windows, Linux, and macOS, plus a mirrored **[virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/)** driver pack for Windows guests. Two independent GitHub Actions pipelines compile pinned upstream sources per OS/arch and publish folder distributions (ZIP/TAR) as release assets. No installer, no admin rights: extract and run (on macOS you only need to clear the download quarantine flag, see below).
+Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib](https://wimlib.net)** for Windows, Linux, and macOS, plus a mirrored **[virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/)** driver pack for Windows guests.
 
 - **QEMU** (`qemu-vX.Y.Z` releases): system emulator matching the host CPU + `qemu-img` disk tool + firmware (SeaBIOS, EDK2, vgabios). Hardware acceleration per OS: KVM (Linux), HVF (macOS), WHPX (Windows), TCG fallback everywhere.
 - **wimlib** (`wimlib-vX.Y.Z` releases): `wimlib-imagex` WIM capture/apply tool + its libs. Overlays onto a QEMU tree (drop `bin/wimlib-imagex` next to the QEMU binaries).
