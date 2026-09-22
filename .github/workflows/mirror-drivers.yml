@@ -1,0 +1,101 @@
+name: mirror-virtio-drivers
+
+# Verified mirror of the virtio-win driver ISO (redistributable Fedora
+# binaries — unlike Windows ISOs, hosting a copy here is fine).
+# Tags drivers-YYYYMMDD releases so headless installs don't depend on
+# fedorapeople at boot time. Never triggers QEMU/wimlib builds and vice versa.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/mirror-drivers.yml"
+      - "scripts/mirror-virtio.sh"
+  pull_request:
+    paths:
+      - ".github/workflows/mirror-drivers.yml"
+      - "scripts/mirror-virtio.sh"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Republish even if today's drivers tag already exists"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 7 * * 1" # weekly Monday, after the QEMU/wimlib checks
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  resolve:
+    name: Resolve drivers tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.t.outputs.tag }}
+      is_new: ${{ steps.check.outputs.is_new }}
+    steps:
+      - id: t
+        run: echo "tag=drivers-$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.t.outputs.tag }}
+        # One release per mirror date: skip publishing if the tag already has
+        # a release (fetch still runs for validation/artifacts).
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "is_new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  mirror:
+    name: Fetch + verify driver ISO
+    runs-on: ubuntu-latest
+    needs: [resolve]
+    outputs:
+      publish: ${{ steps.p.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/mirror-virtio.sh dist/drivers
+      - id: p
+        # PR runs validate only (fetch + magic + sha256); publishing happens
+        # on main/schedule/dispatch for new dates, or when forced.
+        run: |
+          if [[ "${{ github.event_name }}" != "pull_request" \
+            && ("${{ needs.resolve.outputs.is_new }}" == "true" \
+              || "${{ inputs.force }}" == "true") ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drivers
+          path: dist/drivers/*
+          if-no-files-found: error
+
+  release:
+    name: Release driver pack
+    needs: [resolve, mirror]
+    if: needs.mirror.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: drivers
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          name: virtio-win driver pack (${{ needs.resolve.outputs.tag }})
+          body: |
+            Verified mirror of the virtio-win driver ISO (`virtio-win.iso` + `virtio-win.iso.sha256` + `SOURCES.txt`) rsynced from fedorapeople `stable-virtio`.
+            For headless Windows installs: attach as a second cdrom alongside the installer ISO and your `Autounattend.xml` drive.
+            Drop-in replacement for fetching from upstream at install time.
+          files: dist/*
