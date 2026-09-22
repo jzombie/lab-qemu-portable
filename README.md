@@ -74,8 +74,13 @@ How version detection works: `scripts/resolve-version.sh` lists `download.qemu.o
 
 ```
 .github/workflows/build-qemu.yml   # resolve-version -> 4-platform build matrix -> release
+.github/workflows/build-wimlib.yml # independent wimlib pipeline (own tags wimlib-v*, skip-if-released)
 config/hvf-entitlements.plist      # macOS hypervisor entitlement for re-signing
 scripts/resolve-version.sh         # pick latest (or pinned) QEMU version + download tarball
+scripts/resolve-wimlib.sh          # same pattern for wimlib (pinned source, e.g. 1.14.5)
+scripts/build-wimlib.sh            # independent wimlib source build (all OS legs, no QEMU rebuild)
+scripts/package-wimlib.sh          # wimlib portable archive (overlays onto qemu-portable)
+scripts/smoke-wimlib.sh            # wimlib-imagex --version/capture/apply checks
 scripts/build-common.sh            # shared configure flags + native/both/all target selection
 scripts/build-linux.sh             # Debian-container build (KVM, 9p filesystem sharing)
 scripts/build-macos.sh             # Homebrew build (HVF, Cocoa UI)

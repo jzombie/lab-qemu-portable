@@ -34,7 +34,7 @@ is_system_dep() {
 mkdir -p "$OUT/lib"
 for _ in 1 2 3 4 5 6 7 8; do
   changed=0
-  for target in "$OUT"/bin/qemu-* "$OUT"/lib/*.dylib; do
+  for target in "$OUT"/bin/qemu-* "$OUT"/bin/wimlib-imagex "$OUT"/lib/*.dylib; do
     [[ -e "$target" ]] || continue
     while IFS= read -r dep; do
       [[ -n "$dep" ]] || continue
@@ -60,7 +60,7 @@ for lib in "$OUT"/lib/*.dylib; do
   [[ -e "$lib" ]] || continue
   install_name_tool -id "@executable_path/../lib/$(basename "$lib")" "$lib" 2>/dev/null || true
 done
-for target in "$OUT"/bin/qemu-* "$OUT"/lib/*.dylib; do
+for target in "$OUT"/bin/qemu-* "$OUT"/bin/wimlib-imagex "$OUT"/lib/*.dylib; do
   [[ -e "$target" ]] || continue
   id="$(target_id "$target")"
   while IFS= read -r dep; do
@@ -73,7 +73,7 @@ done
 # Verify closure: every @executable_path/@loader_path ref must resolve from
 # the TARGET's directory, and no build-host absolute paths may remain.
 missing=0
-for target in "$OUT"/bin/qemu-* "$OUT"/lib/*.dylib; do
+for target in "$OUT"/bin/qemu-* "$OUT"/bin/wimlib-imagex "$OUT"/lib/*.dylib; do
   [[ -e "$target" ]] || continue
   id="$(target_id "$target")"
   dir="$(dirname "$target")"
