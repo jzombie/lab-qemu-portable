@@ -1,88 +1,68 @@
 # lab-qemu-portable
 
-> **STATUS: BUILDING.** All four platform legs (Windows x64, Linux x64/ARM64,
-> macOS ARM64) compile, package, and pass smoke tests; releases publish
-> automatically per QEMU version. Still pre-1.0: expect iteration on packaging
-> details and growing test coverage.
+Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib](https://wimlib.net)** for Windows, Linux, and macOS, plus a mirrored **[virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/)** driver pack for Windows guests.
 
-Portable, zero-install QEMU builds for Windows, Linux, and macOS. A GitHub Actions workflow downloads the latest stable QEMU source from `download.qemu.org` and compiles it for each OS/architecture. No installer, no admin rights, no system changes: extract the archive and run.
+- **QEMU** (`qemu-vX.Y.Z` releases): system emulator matching the host CPU + `qemu-img` disk tool + firmware (SeaBIOS, EDK2, vgabios). Hardware acceleration per OS: KVM (Linux), HVF (macOS), WHPX (Windows), TCG fallback everywhere.
+- **wimlib** (`wimlib-vX.Y.Z` releases): `wimlib-imagex` WIM capture/apply tool + its libs. Overlays onto a QEMU tree (drop `bin/wimlib-imagex` next to the QEMU binaries).
+- **virtio-win driver pack** (`drivers-YYYYMMDD` releases): verified mirror of the Fedora `virtio-win.iso` (rsynced from `stable-virtio`, SHA256-checked). Attach as a second cdrom for headless Windows installs alongside the installer ISO and your `Autounattend.xml` drive.
 
-> **Portable = folder distributions (ZIP/TAR), not single-file executables.** QEMU needs firmware data files next to the binary (SeaBIOS `bios-256k.bin`, UEFI `edk2-*-code.fd`, vgabios, keymaps) plus dynamically-linked libraries for hardware acceleration (KVM/HVF/WHPX) and runtime support (glib, slirp, SDL). Static single-file linking is unsupported upstream for these paths.
+> **Portable = folders, not single-file exes.** Firmware data files must sit next to the binary, plus dynamically-linked accel/runtime libs. Static single-file linking is unsupported upstream for these paths.
 
-## What you download
-
-One archive per OS/arch, published as GitHub Release assets. Each archive contains exactly one system emulator (matching the host CPU), the `qemu-img` disk tool, and the firmware files it needs:
+## Downloads
 
 | Host | Archive | Inside |
 |---|---|---|
-| Windows x64 (MSYS2 UCRT64) | `qemu-portable-win-x64-UCRT64-<qemu-version>.zip` | `qemu-system-x86_64.exe` + required DLLs at the top level, `share/` firmware |
-| Linux x64 | `qemu-portable-linux-x86_64-<qemu-version>.tar.xz` | `bin/qemu-system-x86_64`, `bin/qemu-img`, `share/qemu/` firmware |
-| Linux ARM64 | `qemu-portable-linux-aarch64-<qemu-version>.tar.xz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `share/qemu/` firmware |
-| macOS ARM64 | `qemu-portable-macos-arm64-<qemu-version>.tar.gz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `share/qemu/` firmware |
+| Windows x86_64 (UCRT64) | `qemu-portable-win-x64-UCRT64-<ver>.zip` | `qemu-system-x86_64.exe` + DLLs at top level, `share/` firmware |
+| Linux x86_64 | `qemu-portable-linux-x86_64-<ver>.tar.xz` | `bin/qemu-system-x86_64`, `bin/qemu-img`, `share/qemu/` |
+| Linux ARM64 | `qemu-portable-linux-aarch64-<ver>.tar.xz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `share/qemu/` |
+| macOS ARM64 (Apple Silicon) | `qemu-portable-macos-arm64-<ver>.tar.gz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `share/qemu/` |
 
-An x64 build runs x64 guests; an ARM build runs ARM guests. A build never contains or runs the other architecture's emulator.
+Coverage: Linux ships both arches, Windows is x86_64-only, macOS is Apple Silicon-only.
 
-## Build modes (`targets` input)
+wimlib archives follow the same per-OS pattern (`wimlib-portable-<os>-<arch>-<ver>`) with `bin/wimlib-imagex`. An x64 build runs x64 guests; an ARM build runs ARM guests.
 
-| Mode | What gets built on each host | Use it when… |
-|---|---|---|
-| `native` (default) | Only the host CPU's emulator (x64 emulator on Intel, ARM emulator on ARM) + `qemu-img` + firmware. Smallest, fastest build. | You run guests that match the host CPU — the normal case, and the only way to get hardware acceleration (KVM/HVF/WHPX). |
-| `both` | Both the x64 and ARM emulators on every host. | You need one host to also run the *other* CPU's guests (works, but through slow software emulation — there is no hardware assist for foreign CPUs). |
-| `all` | Every guest CPU QEMU supports (x86, ARM, RISC-V, PowerPC, s390x, …). Large download, slow build. | You run exotic guests (e.g. FreeBSD on RISC-V) or want the complete set. |
-
-## Running a guest (no install needed)
-
-Extract, then run the emulator for your host. Examples for an x64 host:
+## Quick start
 
 ```bash
-tar -xf qemu-portable-linux-*.tar.xz   # or: unzip on Windows, tar -xzf on macOS
+tar -xf qemu-portable-linux-*.tar.xz   # unzip on Windows, tar -xzf on macOS
 ./qemu-portable/bin/qemu-system-x86_64 --version
 
-# Headless Linux/Windows guest with hardware acceleration (EDK2 + virtio):
+# Headless guest with acceleration (EDK2 + virtio):
 ./qemu-portable/bin/qemu-system-x86_64 -accel kvm -cpu host -m 4G -smp 4 \
   -drive if=pflash,format=raw,readonly=on,file=qemu-portable/share/qemu/edk2-x86_64-code.fd \
   -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
-  -usb -device usb-tablet -display none -nographic
+  -display none -nographic
 ```
 
 Per-OS notes:
 
-- **Linux:** built inside a Debian 12 container so the binaries run on Debian 12+ and Ubuntu 22.04+. If a library is missing, install it from your distro: `libglib2.0-0 libpixman-1-0 libslirp0 libsdl2-2.0-0`.
-- **macOS:** on ARM hosts use `-accel hvf` instead of `-accel kvm` and the `qemu-system-aarch64` binary. Binaries are signed for local use only; after downloading a release you may need `xattr -d com.apple.quarantine <archive>` before first run.
-- **Windows:** executables sit at the top level of the extracted folder (`qemu-system-x86_64.exe -accel whpx -nographic`), with DLLs beside them. For WHPX acceleration, enable the Windows Hypervisor Platform feature first (`DISM /online /Enable-Feature /FeatureName:HypervisorPlatform`).
+- **Linux:** Debian 12 container build; runs on Debian 12+ / Ubuntu 22.04+. Missing libs: `apt install libglib2.0-0 libpixman-1-0 libslirp0 libsdl2-2.0-0`.
+- **macOS:** use `-accel hvf` with `qemu-system-aarch64`. Adhoc-signed, so clear quarantine after download: `xattr -cr qemu-portable`.
+- **Windows:** exes + DLLs at folder top level. For WHPX: `DISM /online /Enable-Feature /FeatureName:HypervisorPlatform`.
 
-## Starting a build yourself
+## Building
 
-1. Open the repo on GitHub → **Actions** tab → **build-qemu-portable** (left sidebar).
-2. Click **Run workflow** (right side) → set the inputs:
-   - `qemu_version`: `auto` (find the newest stable release by itself), or a specific version like `X.Y.Z` to pin a build.
-   - `targets`: `native`, `both`, or `all` (see table above).
-   - `platforms`: `all`, or a comma-separated subset to iterate cheaply — e.g. `macos-arm64`. Valid names: `win-x64`, `linux-x64`, `linux-arm64`, `macos-arm64`. Subset runs upload artifacts but never publish a release.
-   - `force`: publish a release even if this QEMU version already has one. Use it when you rebuild for a new toolchain/runner image rather than a new QEMU.
-3. Click the green **Run workflow** button. Each selected platform takes roughly 10–40 minutes.
-4. When a full-matrix run succeeds **and** the QEMU version is new (or `force` is set), a **Release portable binaries** job attaches the archives to a `qemu-vX.Y.Z` GitHub Release (rebuilt versions republish under the same tag), with a `SHA256SUMS.txt` checksum file.
+Actions → **build-qemu-portable** (or **build-wimlib-portable**) → Run workflow:
 
-Other triggers, all automatic, no setup needed:
+- `qemu_version` / `wimlib_version`: `auto` (latest stable) or pin `X.Y.Z`.
+- `targets` (QEMU only): `native` (host-arch emulator, default) | `both` (+ foreign-arch via TCG) | `all` (every softmmu target).
+- `platforms`: `all` or subset (`win-x64,linux-x64,linux-arm64,macos-arm64`).
+- `force`: republish an existing version (e.g. toolchain rebuild).
 
-- **Push to `main`** touching `.github/workflows/`, `scripts/`, or `config/` rebuilds with defaults (`auto` + `native`) for validation — artifacts only, no release.
-- **Weekly schedule** (Monday mornings) resolves the latest upstream version and rebuilds with defaults, so new QEMU releases get picked up without manual action — but a **release is published only when the QEMU version is new** (no existing `qemu-vX.Y.Z` release), or when a manual run sets `force: true` (e.g. you rebuilt an old version for a new toolchain/runner image). Rebuilds republish under the same `qemu-vX.Y.Z` tag instead of littering duplicates. Every artifact ships with a `BUILD-INFO-<platform>.txt` provenance record (commit, runner image, compiler, container digest).
-- **Linux toolchain pin:** the Debian container is pinned by digest (`debian:12@sha256:…`, see the `setup` job), so the Linux toolchain only moves when that pin is deliberately bumped in review — invisible environment drift can't silently change binaries.
-
-How version detection works: `scripts/resolve-version.sh` lists `download.qemu.org`, keeps only final `X.Y.Z` releases (release candidates excluded), and picks the newest. Every build job then reuses that exact downloaded tarball, so all four platforms compile identical sources.
+A release publishes only on full-matrix runs for a new upstream version (or `force`). Pushes to `main` and the weekly schedule build with defaults for validation (artifacts only). Every artifact ships a `BUILD-INFO-*.txt` provenance record and `SHA256SUMS.txt`.
 
 ## Repo layout
 
 ```
-.github/workflows/build-qemu.yml   # resolve-version -> 4-platform build matrix -> release
-config/hvf-entitlements.plist      # macOS hypervisor entitlement for re-signing
-scripts/resolve-version.sh         # pick latest (or pinned) QEMU version + download tarball
-scripts/build-common.sh            # shared configure flags + native/both/all target selection
-scripts/build-linux.sh             # Debian-container build (KVM, 9p filesystem sharing)
-scripts/build-macos.sh             # Homebrew build (HVF, Cocoa UI)
-scripts/build-windows.sh           # MSYS2 UCRT64 build (WHPX, SDL-only UI)
-scripts/package-linux.sh           # Debian-glibc-floor tarball, firmware path cleanup
-scripts/package-macos.sh           # dylib bundling, path rewrite, HVF re-sign
-scripts/package-windows.sh         # DLL bundling next to exes, zip
-scripts/scrub-firmware-json.py     # make firmware descriptors location-independent
-scripts/smoke-test.sh              # version/accel/firmware/headless-boot checks per build
+.github/workflows/build-qemu.yml    # QEMU: resolve -> 4-platform matrix -> release
+.github/workflows/build-wimlib.yml  # wimlib: same shape, own tags/artifacts (never triggers QEMU)
+.github/workflows/mirror-drivers.yml # weekly verified virtio-win ISO mirror (drivers-* tags)
+config/hvf-entitlements.plist       # macOS hypervisor entitlement for re-signing
+scripts/resolve-*.sh                # pick latest (or pinned) upstream version + download tarball
+scripts/build-{linux,macos,windows}.sh   # QEMU per-OS builds
+scripts/build-wimlib.sh             # wimlib per-OS build (pinned source, all legs)
+scripts/package-*.sh                # portable trees: dylib/DLL bundling, path rewrite, re-sign
+scripts/smoke-*.sh                  # version/accel/firmware/boot checks per build
+scripts/scrub-firmware-json.py      # make firmware descriptors location-independent
+scripts/mirror-virtio.sh            # rsync virtio-win ISO + ISO-magic/sha256 verify
 ```

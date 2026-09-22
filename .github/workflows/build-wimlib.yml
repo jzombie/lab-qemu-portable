@@ -1,0 +1,277 @@
+name: build-wimlib-portable
+
+# Independent wimlib pipeline (decoupled from build-qemu-portable).
+# Own tags (wimlib-vX.Y.Z), own ccache keys, own artifacts. A wimlib change
+# never triggers a QEMU rebuild and vice versa: push paths are scoped to
+# wimlib files only.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-wimlib.yml"
+      - "scripts/resolve-wimlib.sh"
+      - "scripts/build-wimlib.sh"
+      - "scripts/package-wimlib.sh"
+      - "scripts/smoke-wimlib.sh"
+  pull_request:
+    paths:
+      - ".github/workflows/build-wimlib.yml"
+      - "scripts/resolve-wimlib.sh"
+      - "scripts/build-wimlib.sh"
+      - "scripts/package-wimlib.sh"
+      - "scripts/smoke-wimlib.sh"
+  workflow_dispatch:
+    inputs:
+      wimlib_version:
+        description: "wimlib version (e.g. X.Y.Z) or 'auto' for latest stable"
+        required: false
+        default: "auto"
+        type: string
+      platforms:
+        description: "'all' or comma-separated subset: win-x64,linux-x64,linux-arm64,macos-arm64"
+        required: false
+        default: "all"
+        type: string
+      force:
+        description: "Publish a release even if this wimlib version already has one"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "30 6 * * 1" # weekly Monday, offset from QEMU job
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PREFIX: /wimlib-portable
+
+jobs:
+  resolve:
+    name: Resolve wimlib version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tarball: ${{ steps.v.outputs.tarball }}
+      is_new: ${{ steps.check.outputs.is_new }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: bash scripts/resolve-wimlib.sh "${{ inputs.wimlib_version || 'auto' }}"
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WIMLIB_VERSION: ${{ steps.v.outputs.version }}
+        # One release per upstream version: skip publishing if this version
+        # already has a release (build still runs for validation/artifacts).
+        # This is the "downloads already exist, no rebuild" gate.
+        run: |
+          if gh release view "wimlib-v${WIMLIB_VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "is_new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_new=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wimlib-tarball
+          path: wimlib-*.tar.gz*
+
+  setup:
+    name: Select platforms
+    runs-on: ubuntu-latest
+    needs: [resolve]
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      publish: ${{ steps.m.outputs.publish }}
+    steps:
+      - id: m
+        env:
+          WANT: ${{ inputs.platforms || 'all' }}
+          IS_NEW: ${{ needs.resolve.outputs.is_new }}
+          FORCE: ${{ inputs.force }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          # Same 4 legs as QEMU (macos-x64 omitted, same rationale), same
+          # digest-pinned Debian container for the Linux glibc floor.
+          DEBIAN = "debian:12@sha256:f37a335e82bca302e955fa39f9dfe28f1be618f016f8a2b56318e5a5111afc26"
+          entries = {
+            "win-x64": {"name": "win-x64-ucrt64", "os": "windows-latest",
+                        "msystem": "UCRT64"},
+            "linux-x64": {"name": "linux-x64", "os": "ubuntu-24.04",
+                          "container": DEBIAN},
+            "linux-arm64": {"name": "linux-arm64", "os": "ubuntu-24.04-arm",
+                            "container": DEBIAN},
+            "macos-arm64": {"name": "macos-arm64", "os": "macos-15"},
+          }
+          want = os.environ.get("WANT", "all").strip().lower()
+          if want in ("", "all"):
+              sel = list(entries.values())
+          else:
+              keys = [k.strip() for k in want.split(",")]
+              unknown = [k for k in keys if k not in entries]
+              if unknown:
+                  raise SystemExit(f"unknown platform(s): {unknown}; valid: {sorted(entries)}")
+              sel = [entries[k] for k in keys]
+          full = want in ("", "all")
+          # PR builds never publish (artifacts only); same for subset runs.
+          publish = (full and os.environ.get("EVENT") != "pull_request"
+                     and (os.environ.get("IS_NEW") == "true"
+                          or os.environ.get("FORCE", "").lower() == "true"))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("matrix=" + json.dumps({"include": sel}) + "\n")
+              f.write(f"publish={'true' if publish else 'false'}\n")
+          print("selected:", [e["name"] for e in sel], "publish:", publish)
+          EOF
+
+  build:
+    name: build (${{ matrix.name }})
+    needs: [resolve, setup]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || null }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      MSYS: winsymlinks:nativestrict
+      MSYSTEM: ${{ matrix.msystem || '' }}
+      WIMLIB_VERSION: ${{ needs.resolve.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          symlinks: true
+      - run: git config --global core.symlinks true
+        if: runner.os == 'Windows'
+
+      - name: Setup MSYS2 (${{ matrix.msystem }})
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+
+      - name: Download wimlib tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: wimlib-tarball
+          path: .
+
+      - name: Install unpack tools (Linux container)
+        if: runner.os == 'Linux'
+        run: apt-get update && apt-get install -y --no-install-recommends xz-utils tar gzip
+
+      - name: Unpack sources
+        run: tar -xzf wimlib-${{ needs.resolve.outputs.version }}.tar.gz
+
+      - name: ccache cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache-wimlib
+          key: ccache-wimlib-${{ matrix.name }}-${{ needs.resolve.outputs.version }}
+          restore-keys: |
+            ccache-wimlib-${{ matrix.name }}-
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache-wimlib
+
+      - name: Build wimlib (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export CCACHE_DIR="${{ github.workspace }}/.ccache-wimlib"
+          bash scripts/build-wimlib.sh
+
+      - name: Build wimlib (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          export CCACHE_DIR="${{ github.workspace }}/.ccache-wimlib"
+          bash scripts/build-wimlib.sh
+
+      - name: Package portable tree (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: bash scripts/package-wimlib.sh
+        env:
+          PORTABLE_DIR: ${{ github.workspace }}/wimlib-portable
+
+      - name: Package portable tree (Unix)
+        if: runner.os != 'Windows'
+        run: bash scripts/package-wimlib.sh
+        env:
+          PORTABLE_DIR: ${{ github.workspace }}/wimlib-portable
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: bash scripts/smoke-wimlib.sh
+        env:
+          PORTABLE_DIR: ${{ github.workspace }}/wimlib-portable
+
+      - name: Smoke test (Unix)
+        if: runner.os != 'Windows'
+        run: bash scripts/smoke-wimlib.sh
+        env:
+          PORTABLE_DIR: ${{ github.workspace }}/wimlib-portable
+
+      - name: Write BUILD-INFO manifest
+        run: |
+          {
+            echo "wimlib_version=${WIMLIB_VERSION}"
+            echo "platform=${{ matrix.name }}"
+            echo "repo=${GITHUB_REPOSITORY}"
+            echo "commit=${GITHUB_SHA}"
+            echo "built_utc=$(date -u +%FT%TZ)"
+            echo "runner_arch=$(uname -m)"
+            echo "runner_image_os=${ImageOS:-unknown}"
+            echo "runner_image_version=${ImageVersion:-unknown}"
+            echo "container=${{ matrix.container || 'none' }}"
+            command -v gcc >/dev/null 2>&1 && gcc --version | head -1 || true
+            command -v clang >/dev/null 2>&1 && clang --version | head -1 | xargs || true
+            command -v ccache >/dev/null 2>&1 && ccache --version | head -1 || true
+          } > "dist/BUILD-INFO-wimlib-${{ matrix.name }}.txt"
+          cat "dist/BUILD-INFO-wimlib-${{ matrix.name }}.txt"
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-wimlib-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Release portable wimlib binaries
+    needs: [resolve, setup, build]
+    if: needs.setup.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-wimlib-*
+          merge-multiple: true
+          path: dist
+      - run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          ls -lh
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: wimlib-v${{ needs.resolve.outputs.version }}
+          name: wimlib ${{ needs.resolve.outputs.version }} portable
+          body: |
+            Portable zero-install wimlib ${{ needs.resolve.outputs.version }} (wimlib-imagex + bundled libs).
+            Overlays onto qemu-portable: copy `bin/wimlib-imagex` (Linux/macOS) or `wimlib-imagex.exe` (Windows, extracted folder root with no `bin/`) next to the qemu binaries.
+            Built from pinned source (https://wimlib.net/downloads); no admin/install needed.
+            macOS adhoc-signed (`xattr -cr` may be needed after download).
+            Each archive ships with a `BUILD-INFO-wimlib-<platform>.txt` provenance record.
+          files: dist/*
