@@ -4,7 +4,7 @@
 # objdump fallback. Runs under MSYS2 bash.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Must match build-windows.sh: direct install into a real workspace path
+# Must match build-qemu-windows.sh: direct install into a real workspace path
 # (no DESTDIR staging on Windows — see comment there).
 ROOT="$PWD/wininstall"
 DIST_DIR="${DIST_DIR:-$PWD/dist}"
@@ -23,7 +23,7 @@ cp -a "${ROOT}/share" "$OUT/"
 mkdir -p "$OUT/etc"
 cp -a "${ROOT}/etc/." "$OUT/etc/" 2>/dev/null || true
 
-python3 "${SCRIPT_DIR}/scrub-firmware-json.py" "$OUT/share"
+python3 "${SCRIPT_DIR}/scrub-qemu-firmware.py" "$OUT/share"
 
 collect_dlls() {
   local bin="$1" dest="$2"
@@ -103,6 +103,6 @@ if command -v zip >/dev/null 2>&1; then
 else
   powershell.exe -NoProfile -Command "Compress-Archive -Path '$(cygpath -w "$PWD/qemu-portable")' -DestinationPath '$(cygpath -w "$PKG")' -Force"
 fi
-# NOTE: keep $OUT in place — the smoke-test step runs next against this tree.
+# NOTE: keep $OUT in place — the smoke-qemu step runs next against this tree.
 echo "wrote $PKG"
 ls -lh "$PKG"

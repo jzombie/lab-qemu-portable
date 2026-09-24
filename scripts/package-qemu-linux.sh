@@ -13,7 +13,7 @@ ROOT="${STAGE_DIR}${PREFIX}"
 test -x "${ROOT}/bin/qemu-system-x86_64" || test -x "${ROOT}/bin/qemu-system-aarch64" \
   || { echo "no qemu-system binary under $ROOT/bin"; exit 1; }
 
-python3 "${SCRIPT_DIR}/scrub-firmware-json.py" "${ROOT}/share/qemu"
+python3 "${SCRIPT_DIR}/scrub-qemu-firmware.py" "${ROOT}/share/qemu"
 
 # Portable folder layout: dist/qemu-portable/{bin,lib,share,etc}
 OUT="$PWD/qemu-portable"
@@ -27,7 +27,7 @@ mkdir -p "$OUT/lib"
 # Only the glibc/loader core stays host-provided; everything else (glib,
 # pixman, slirp, SDL2, libusb, libseccomp, libcap-ng, libffi, zlib, libstdc++,
 # ...) ships in lib/ with an $ORIGIN RPATH. patchelf is installed by
-# build-linux.sh. glibc floor still applies: build on Debian 12 -> runs on
+# build-qemu-linux.sh. glibc floor still applies: build on Debian 12 -> runs on
 # Debian 12+ / Ubuntu 22.04+.
 is_host_lib() {
   case "$1" in
@@ -104,6 +104,6 @@ echo "$VER" > "$OUT/VERSION"
 mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-linux-${ARCH}-${VER}.tar.xz"
 tar -cJf "$PKG" -C "$PWD" qemu-portable
-# NOTE: keep $OUT in place — the smoke-test step runs next against this tree.
+# NOTE: keep $OUT in place — the smoke-qemu step runs next against this tree.
 echo "wrote $PKG"
 ls -lh "$PKG"

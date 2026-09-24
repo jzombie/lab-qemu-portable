@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Scrub absolute build-runner paths from QEMU firmware JSON descriptors.
 
-Usage: scrub-firmware-json.py <share/qemu dir>
+Usage: scrub-qemu-firmware.py <share/qemu dir>
 Converts "filename": "/abs/.../edk2-x86_64-code.fd" -> basename so the tree
 is relocatable regardless of extract location. Pure Python: no GNU/BSD sed
 portability issues (macOS sed requires `-i ''` while GNU sed does not).
@@ -12,7 +12,7 @@ import sys
 
 SHARE = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 if SHARE is None:
-    sys.exit("usage: scrub-firmware-json.py <share/qemu>")
+    sys.exit("usage: scrub-qemu-firmware.py <share/qemu>")
 
 fw_dir = SHARE / "firmware"
 if not fw_dir.is_dir():

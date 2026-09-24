@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared smoke test. Native-arch emulator ONLY — no cross-arch binaries are
-# built, shipped, or executed (see build-common.sh arch policy).
+# built, shipped, or executed (see build-qemu-common.sh arch policy).
 # Checks: --version, accel backends, qemu-img, firmware presence, headless
 # TCG boot probe of the native emulator. No KVM/HVF/WHPX required.
 # Every guest binary invocation goes through with_timeout: first launch of an

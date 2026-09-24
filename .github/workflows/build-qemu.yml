@@ -4,13 +4,17 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/**"
-      - "scripts/**"
+      - ".github/workflows/build-qemu.yml"
+      - "scripts/*-qemu.sh"
+      - "scripts/*-qemu-*.sh"
+      - "scripts/scrub-qemu-*.py"
       - "config/**"
   pull_request:
     paths:
-      - ".github/workflows/**"
-      - "scripts/**"
+      - ".github/workflows/build-qemu.yml"
+      - "scripts/*-qemu.sh"
+      - "scripts/*-qemu-*.sh"
+      - "scripts/scrub-qemu-*.py"
       - "config/**"
   workflow_dispatch:
     inputs:
@@ -63,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: v
-        run: bash scripts/resolve-version.sh "${{ inputs.qemu_version || 'auto' }}"
+        run: bash scripts/resolve-qemu.sh "${{ inputs.qemu_version || 'auto' }}"
       - id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -100,7 +104,7 @@ jobs:
           import json, os
           # NOTE: macos-x64 (Intel) intentionally omitted: Apple Silicon is the
           # current platform; Intel GHA runners are legacy/slowest (brew builds
-          # glib etc. from source, 30-60+ min leg). build-macos.sh stays
+          # glib etc. from source, 30-60+ min leg). build-qemu-macos.sh stays
           # arch-agnostic, so the leg can be re-added if demand appears.
           #
           # Linux container is pinned by DIGEST, not tag: the toolchain only
@@ -111,19 +115,19 @@ jobs:
           entries = {
             "win-x64": {"name": "win-x64-ucrt64", "os": "windows-latest",
                         "msystem": "UCRT64",
-                        "build_script": "scripts/build-windows.sh",
-                        "package_script": "scripts/package-windows.sh"},
+                        "build_script": "scripts/build-qemu-windows.sh",
+                        "package_script": "scripts/package-qemu-windows.sh"},
             "linux-x64": {"name": "linux-x64", "os": "ubuntu-24.04",
                           "container": DEBIAN,
-                          "build_script": "scripts/build-linux.sh",
-                          "package_script": "scripts/package-linux.sh"},
+                          "build_script": "scripts/build-qemu-linux.sh",
+                          "package_script": "scripts/package-qemu-linux.sh"},
             "linux-arm64": {"name": "linux-arm64", "os": "ubuntu-24.04-arm",
                             "container": DEBIAN,
-                            "build_script": "scripts/build-linux.sh",
-                            "package_script": "scripts/package-linux.sh"},
+                            "build_script": "scripts/build-qemu-linux.sh",
+                            "package_script": "scripts/package-qemu-linux.sh"},
             "macos-arm64": {"name": "macos-arm64", "os": "macos-15",
-                            "build_script": "scripts/build-macos.sh",
-                            "package_script": "scripts/package-macos.sh"},
+                            "build_script": "scripts/build-qemu-macos.sh",
+                            "package_script": "scripts/package-qemu-macos.sh"},
           }
           want = os.environ.get("WANT", "all").strip().lower()
           if want in ("", "all"):
@@ -230,13 +234,13 @@ jobs:
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: bash scripts/smoke-test.sh
+        run: bash scripts/smoke-qemu.sh
         env:
           PORTABLE_DIR: ${{ github.workspace }}/qemu-portable
 
       - name: Smoke test (Unix)
         if: runner.os != 'Windows'
-        run: bash scripts/smoke-test.sh
+        run: bash scripts/smoke-qemu.sh
         env:
           PORTABLE_DIR: ${{ github.workspace }}/qemu-portable
 

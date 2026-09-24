@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared configure-flag logic. Sourced by build-linux/macos/windows.sh.
+# Shared configure-flag logic. Sourced by build-qemu-linux/macos/windows.sh.
 # Env in:  TARGETS_MODE (native|both|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
 # Env out: CONFIGURE_ARGS (bash array), NPROC
 #
@@ -40,7 +40,7 @@ fi
 export NPROC
 
 # NOTE: --enable-virtfs is intentionally NOT here (Linux-only; breaks
-# macOS/Windows configure). build-linux.sh appends it.
+# macOS/Windows configure). build-qemu-linux.sh appends it.
 CONFIGURE_ARGS=(
   "--prefix=${PREFIX}"
   "--sysconfdir=${PREFIX}/etc"
@@ -57,7 +57,7 @@ CONFIGURE_ARGS=(
   --enable-curses
 )
 # NOTE: no --enable-sdl here — SDL is per-OS. Linux/Windows enable it;
-# macOS disables it (see build-macos.sh): Homebrew's `sdl` formula is now the
+# macOS disables it (see build-qemu-macos.sh): Homebrew's `sdl` formula is now the
 # sdl2-compat shim, whose load-time initializer dlopens SDL3 and pops a
 # blocking NSAlert dialog when that fails — hanging even `qemu --version`
 # forever on headless runners. Cocoa is the native macOS UI; nothing needs SDL.

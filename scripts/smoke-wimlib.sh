@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Standalone wimlib smoke test (independent of QEMU smoke-test.sh).
+# Standalone wimlib smoke test (independent of QEMU smoke-qemu.sh).
 # Checks: wimlib-imagex --version, capture/apply help probes.
 # Env: WIMLIB_VERSION (expected, optional), PORTABLE_DIR (default ./wimlib-portable)
 set -euo pipefail

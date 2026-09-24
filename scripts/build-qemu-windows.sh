@@ -15,7 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="$PWD/wininstall"
 # shellcheck disable=SC1091
-source "${SCRIPT_DIR}/build-common.sh"
+source "${SCRIPT_DIR}/build-qemu-common.sh"
 
 SRC_DIR="${SRC_DIR:-$PWD/qemu-${QEMU_VERSION:?set QEMU_VERSION}}"
 BUILD_DIR="${BUILD_DIR:-$PWD/build}"

@@ -4,7 +4,7 @@
 # distinct dirs (build-wimlib/stage-wimlib) so neither build triggers the other.
 # Env: WIMLIB_VERSION (required), PREFIX (default /wimlib-portable),
 #   SRC_DIR, BUILD_DIR, STAGE_DIR (Windows: installs to $PWD/wimlib-install, no DESTDIR).
-# Layout note: Windows MSYS2 mirrors scripts/build-windows.sh — no fake-root
+# Layout note: Windows MSYS2 mirrors scripts/build-qemu-windows.sh — no fake-root
 # prefix and no DESTDIR (MSYS path conversion + drive-letter bug); install
 # directly into a real workspace path.
 set -euo pipefail

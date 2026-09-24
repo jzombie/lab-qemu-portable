@@ -58,11 +58,11 @@ A release publishes only on full-matrix runs for a new upstream version (or `for
 .github/workflows/build-wimlib.yml  # wimlib: same shape, own tags/artifacts (never triggers QEMU)
 .github/workflows/mirror-drivers.yml # weekly verified virtio-win ISO mirror (drivers-* tags)
 config/hvf-entitlements.plist       # macOS hypervisor entitlement for re-signing
-scripts/resolve-*.sh                # pick latest (or pinned) upstream version + download tarball
-scripts/build-{linux,macos,windows}.sh   # QEMU per-OS builds
-scripts/build-wimlib.sh             # wimlib per-OS build (pinned source, all legs)
-scripts/package-*.sh                # portable trees: dylib/DLL bundling, path rewrite, re-sign
-scripts/smoke-*.sh                  # version/accel/firmware/boot checks per build
-scripts/scrub-firmware-json.py      # make firmware descriptors location-independent
+scripts/resolve-qemu.sh / resolve-wimlib.sh  # pick latest (or pinned) upstream version + download tarball
+scripts/build-qemu-{common,linux,macos,windows}.sh  # QEMU per-OS builds (split: apt vs brew vs MSYS2)
+scripts/build-wimlib.sh             # wimlib single-file build (all legs in one script)
+scripts/package-qemu-{linux,macos,windows}.sh / package-wimlib.sh  # portable trees: so/dylib/DLL bundling, path rewrite, re-sign
+scripts/smoke-qemu.sh / smoke-wimlib.sh  # version/accel/firmware/boot checks per build
+scripts/scrub-qemu-firmware.py      # make firmware descriptors location-independent
 scripts/mirror-virtio.sh            # rsync virtio-win ISO + ISO-magic/sha256 verify
 ```
