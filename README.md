@@ -49,7 +49,7 @@ Actions → **build-qemu-portable** (or **build-wimlib-portable**) → Run workf
 - `platforms`: `all` or subset (`win-x64,linux-x64,linux-arm64,macos-arm64`).
 - `force`: republish an existing version (e.g. toolchain rebuild).
 
-A release publishes only on full-matrix runs for a new upstream version (or `force`). Pushes to `main` and the weekly schedule build with defaults for validation (artifacts only). Every artifact ships a `BUILD-INFO-*.txt` provenance record and `SHA256SUMS.txt`.
+A release publishes only on full-matrix runs for a new upstream version (or `force`). Pushes to `main` and the weekly schedule build with defaults for validation (artifacts only). Every artifact ships a `BUILD-INFO-*.txt` provenance record and `SHA256SUMS.txt`. Releases are never overwritten: new versions take `qemu-vX.Y.Z`, rebuilds take `qemu-vX.Y.Z-<run_number>` with the squash-merged commit message as notes.
 
 ## Repo layout
 

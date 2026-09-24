@@ -280,8 +280,9 @@ jobs:
     needs: [resolve, setup, build]
     # Publish only complete sets for new upstream versions — or any full-set
     # manual run with force=true (e.g. rebuilt for a new toolchain image).
-    # Subset iteration runs stop at artifacts. One release per QEMU version:
-    # rebuilding republishes under the same tag.
+    # Subset iteration runs stop at artifacts. Releases are never overwritten:
+    # a new upstream version takes qemu-vX.Y.Z, rebuilds take
+    # qemu-vX.Y.Z-<run_number>, so the proven release stays intact.
     if: needs.setup.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -295,18 +296,45 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
           ls -lh
+      - id: meta
+        env:
+          VER: ${{ needs.resolve.outputs.version }}
+          IS_NEW: ${{ needs.resolve.outputs.is_new }}
+          TARGETS: ${{ inputs.targets || 'native' }}
+          SQUASH_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          base="qemu-v${VER}"
+          if [[ "$IS_NEW" == "true" ]]; then
+            tag="$base"
+            title="QEMU ${VER} portable (${TARGETS})"
+          else
+            tag="${base}-${GITHUB_RUN_NUMBER}"
+            title="QEMU ${VER} portable rebuild ${GITHUB_RUN_NUMBER} (${TARGETS})"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "name=$title" >> "$GITHUB_OUTPUT"
+          {
+            echo 'body<<RELEASE_BODY_EOF'
+            if [[ -n "$SQUASH_MSG" ]]; then
+              # Squash-merged PR title+body: what changed and why.
+              echo "$SQUASH_MSG"
+              echo
+              echo "---"
+            fi
+            echo "Portable zero-install QEMU ${VER} (${TARGETS} targets)."
+            echo
+            echo "- Native: host-arch emulator only (x86_64 on Intel, aarch64 on ARM) + qemu-img + SeaBIOS/EDK2 firmware. No arch mixing."
+            echo "- Both (\`targets=both\`): x86_64 + aarch64 emulators on every host (run foreign-arch guests via software emulation)."
+            echo "- Full (\`targets=all\`): all softmmu emulators (FreeBSD/other arches)."
+            echo "- Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via \`-display none -nographic\`."
+            echo "- Layout: extract and run: Linux/macOS \`./qemu-portable/bin/qemu-system-x86_64 --version\`; Windows \`qemu-system-x86_64.exe --version\` from the extracted folder root (exes sit at the top level, no \`bin/\`). No installer/admin needed."
+            echo "- Linux built on a digest-pinned Debian 12 container (see BUILD-INFO-*.txt for the exact toolchain); macOS adhoc-signed for local HVF (\`xattr -d com.apple.quarantine\` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root."
+            echo "- Each archive is accompanied by a \`BUILD-INFO-<platform>.txt\` provenance record (commit, runner image, compiler, container digest)."
+            echo RELEASE_BODY_EOF
+          } >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: qemu-v${{ needs.resolve.outputs.version }}
-          name: QEMU ${{ needs.resolve.outputs.version }} portable (${{ inputs.targets || 'native' }})
-          body: |
-            Portable zero-install QEMU ${{ needs.resolve.outputs.version }} (${{ inputs.targets || 'native' }} targets).
-
-            - Native: host-arch emulator only (x86_64 on Intel, aarch64 on ARM) + qemu-img + SeaBIOS/EDK2 firmware. No arch mixing.
-            - Both (`targets=both`): x86_64 + aarch64 emulators on every host (run foreign-arch guests via software emulation).
-            - Full (`targets=all`): all softmmu emulators (FreeBSD/other arches).
-            - Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via `-display none -nographic`.
-            - Layout: extract and run: Linux/macOS `./qemu-portable/bin/qemu-system-x86_64 --version`; Windows `qemu-system-x86_64.exe --version` from the extracted folder root (exes sit at the top level, no `bin/`). No installer/admin needed.
-            - Linux built on a digest-pinned Debian 12 container (see BUILD-INFO-*.txt for the exact toolchain); macOS adhoc-signed for local HVF (`xattr -d com.apple.quarantine` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root.
-            - Each archive is accompanied by a `BUILD-INFO-<platform>.txt` provenance record (commit, runner image, compiler, container digest).
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.name }}
+          body: ${{ steps.meta.outputs.body }}
           files: dist/*
