@@ -18,7 +18,7 @@ apt-get install -y --no-install-recommends \
   libcapstone-dev libffi-dev libglib2.0-dev libpixman-1-dev \
   libslirp-dev libsdl2-dev libusb-1.0-0-dev libseccomp-dev libcap-ng-dev \
   libncurses-dev \
-  libgnutls28-dev nettle-dev libgcrypt20-dev \
+  libgnutls28-dev nettle-dev \
   zlib1g-dev make meson ninja-build pkgconf python3 python3-venv \
   python3-pip python3-setuptools python3-wheel \
   tar xz-utils curl file patchelf
@@ -33,7 +33,9 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs --enable-sdl \
-  --enable-gnutls --enable-nettle --enable-gcrypt
+  --enable-gnutls --enable-nettle
+# NOTE: nettle OR gcrypt (meson errors if both are enabled) — nettle matches
+# the macOS leg, where VNC passwords already work.
 
 echo "==> Verifying crypto backends (VNC password needs DES via nettle/gcrypt)"
 grep -q '^CONFIG_GNUTLS=y' config-host.mak || { echo "ERROR: CONFIG_GNUTLS not enabled"; exit 1; }
