@@ -33,13 +33,17 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs --enable-sdl \
-  --enable-gnutls --enable-nettle
+  --enable-gnutls --enable-nettle 2>&1 | tee configure.log
 # NOTE: nettle OR gcrypt (meson errors if both are enabled) — nettle matches
 # the macOS leg, where VNC passwords already work.
 
-echo "==> Verifying crypto backends (VNC password needs DES via nettle/gcrypt)"
-grep -q '^CONFIG_GNUTLS=y' config-host.mak || { echo "ERROR: CONFIG_GNUTLS not enabled"; exit 1; }
-grep -q '^CONFIG_NETTLE=y' config-host.mak || { echo "ERROR: CONFIG_NETTLE not enabled"; exit 1; }
+echo "==> Verifying crypto backends (VNC password needs DES via nettle)"
+# config-host.mak variable names for these backends aren't stable across QEMU
+# versions, so assert on the configure summary instead (e.g. "nettle : YES").
+grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
+  || { echo "ERROR: GNUTLS not enabled"; exit 1; }
+grep -Eq '^[[:space:]]*nettle[[:space:]]*:[[:space:]]*YES' configure.log \
+  || { echo "ERROR: nettle not enabled"; exit 1; }
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"
