@@ -7,6 +7,11 @@ on:
       - ".github/workflows/**"
       - "scripts/**"
       - "config/**"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "scripts/**"
+      - "config/**"
   workflow_dispatch:
     inputs:
       qemu_version:
@@ -132,7 +137,8 @@ jobs:
           full = want in ("", "all")
           # Publish only complete sets, and only for new upstream versions —
           # unless manually forced (e.g. rebuilt for a new toolchain image).
-          publish = full and (os.environ.get("IS_NEW") == "true"
+          # PRs never publish (validation/artifacts only).
+          publish = full and os.environ.get("EVENT") != "pull_request" and (os.environ.get("IS_NEW") == "true"
                               or os.environ.get("FORCE", "").lower() == "true")
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write("matrix=" + json.dumps({"include": sel}) + "\n")
