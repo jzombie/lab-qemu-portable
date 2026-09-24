@@ -13,9 +13,9 @@ Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib]
 | Host | Archive | Inside |
 |---|---|---|
 | Windows x86_64 (UCRT64) | `qemu-portable-win-x64-UCRT64-<ver>.zip` | `qemu-system-x86_64.exe` + DLLs at top level, `share/` firmware |
-| Linux x86_64 | `qemu-portable-linux-x86_64-<ver>.tar.xz` | `bin/qemu-system-x86_64`, `bin/qemu-img`, `share/qemu/` |
-| Linux ARM64 | `qemu-portable-linux-aarch64-<ver>.tar.xz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `share/qemu/` |
-| macOS ARM64 (Apple Silicon) | `qemu-portable-macos-arm64-<ver>.tar.gz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `share/qemu/` |
+| Linux x86_64 | `qemu-portable-linux-x86_64-<ver>.tar.xz` | `bin/qemu-system-x86_64`, `bin/qemu-img`, `lib/*.so*`, `share/qemu/` |
+| Linux ARM64 | `qemu-portable-linux-aarch64-<ver>.tar.xz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `lib/*.so*`, `share/qemu/` |
+| macOS ARM64 (Apple Silicon) | `qemu-portable-macos-arm64-<ver>.tar.gz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `lib/*.dylib`, `share/qemu/` |
 
 Coverage: Linux ships both arches, Windows is x86_64-only, macOS is Apple Silicon-only.
 
