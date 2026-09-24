@@ -2,7 +2,8 @@
 # Shared smoke test. Native-arch emulator ONLY — no cross-arch binaries are
 # built, shipped, or executed (see build-qemu-common.sh arch policy).
 # Checks: --version, accel backends, qemu-img, firmware presence, headless
-# TCG boot probe of the native emulator. No KVM/HVF/WHPX required.
+# TCG boot probe of the native emulator, VNC password auth probe (DES crypto).
+# No KVM/HVF/WHPX required.
 # Every guest binary invocation goes through with_timeout: first launch of an
 # adhoc-signed binary on macOS can stall for minutes in Gatekeeper assessment,
 # and a stall must fail loudly instead of hanging the job silently.
@@ -124,6 +125,33 @@ else
   set -e
 fi
 [[ $rc -eq 124 || $rc -eq 137 ]] || echo "note: probe exited rc=$rc (124/137=timeout/OK)"
+
+echo "==> VNC password auth probe (DES crypto via QMP set_password)"
+# Functional check that VNC password auth is compiled in: boot headless with a
+# password-protected VNC server and set the password over QMP stdio. Without
+# DES (nettle/gcrypt compiled out), set_password returns {"error": ...}
+# instead of {"return": {}}. Ends via 'quit' (rc=0), not a timeout kill.
+if [[ "$NATIVE" == *"x86_64"* ]]; then
+  [[ -f "$FWDIR/bios-256k.bin" ]] || fail "missing bios-256k.bin"
+  FW_ARGS=(-bios "$FWDIR/bios-256k.bin")
+else
+  [[ -f "$FWDIR/edk2-aarch64-code.fd" ]] || fail "missing edk2-aarch64-code.fd"
+  FW_ARGS=(-M virt -drive if=pflash,format=raw,readonly=on,file="$FWDIR/edk2-aarch64-code.fd")
+fi
+VNC_LOG="${TMPDIR:-/tmp}/vnc-probe.log"
+set +e
+printf '%s\n' \
+  '{"execute":"qmp_capabilities"}' \
+  '{"execute":"set_password","arguments":{"protocol":"vnc","password":"ci-probe-pw"}}' \
+  '{"execute":"quit"}' | with_timeout 30 "$NATIVE" -display none -accel tcg -m 256 \
+    "${FW_ARGS[@]}" -nic none -snapshot \
+    -vnc 127.0.0.1:99,password -qmp stdio >"$VNC_LOG" 2>&1
+rc=$?
+set -e
+cat "$VNC_LOG" || true
+grep -q '"return": *{}' "$VNC_LOG" || fail "VNC set_password got no success reply (see log above)"
+if grep -q '"error"' "$VNC_LOG"; then fail "VNC set_password returned error (DES/crypto missing?)"; fi
+[[ $rc -eq 0 ]] || echo "note: vnc probe exited rc=$rc (0=clean quit)"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "==> codesign verify"
