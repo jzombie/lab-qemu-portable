@@ -2,7 +2,7 @@
 # Shared smoke test. Native-arch emulator ONLY — no cross-arch binaries are
 # built, shipped, or executed (see build-qemu-common.sh arch policy).
 # Checks: --version, accel backends, qemu-img, firmware presence, headless
-# TCG boot probe of the native emulator, VNC password auth probe (DES crypto).
+# TCG boot probe of the native emulator, VNC DES proof (real RFB handshake).
 # No KVM/HVF/WHPX required.
 # Every guest binary invocation goes through with_timeout: first launch of an
 # adhoc-signed binary on macOS can stall for minutes in Gatekeeper assessment,
@@ -126,32 +126,24 @@ else
 fi
 [[ $rc -eq 124 || $rc -eq 137 ]] || echo "note: probe exited rc=$rc (124/137=timeout/OK)"
 
-echo "==> VNC password auth probe (DES crypto via QMP set_password)"
-# Functional check that VNC password auth is compiled in: boot headless with a
-# password-protected VNC server and set the password over QMP stdio. Without
-# DES (nettle/gcrypt compiled out), set_password returns {"error": ...}
-# instead of {"return": {}}. Ends via 'quit' (rc=0), not a timeout kill.
+echo "==> VNC DES proof (RFB handshake with real DES-encrypted challenge)"
+# Full proof that DES works end-to-end: qemu-vnc-des-probe.py boots the guest with
+# a password-protected VNC server, sets the password over QMP/TCP, then acts
+# as a real VNC client — reads the 16-byte challenge, DES-encrypts it with the
+# password key, and requires auth-OK from the server. The script self-tests
+# its DES against the FIPS known-answer vector first, so a failure here
+# indicts the QEMU binary, never the test cipher.
+PYBIN="$(command -v python3 || command -v python)"
 if [[ "$NATIVE" == *"x86_64"* ]]; then
   [[ -f "$FWDIR/bios-256k.bin" ]] || fail "missing bios-256k.bin"
-  FW_ARGS=(-bios "$FWDIR/bios-256k.bin")
+  PROBE_FW=(--bios "$FWDIR/bios-256k.bin")
 else
   [[ -f "$FWDIR/edk2-aarch64-code.fd" ]] || fail "missing edk2-aarch64-code.fd"
-  FW_ARGS=(-M virt -drive if=pflash,format=raw,readonly=on,file="$FWDIR/edk2-aarch64-code.fd")
+  PROBE_FW=(--pflash "$FWDIR/edk2-aarch64-code.fd" --machine virt)
 fi
-VNC_LOG="${TMPDIR:-/tmp}/vnc-probe.log"
-set +e
-printf '%s\n' \
-  '{"execute":"qmp_capabilities"}' \
-  '{"execute":"set_password","arguments":{"protocol":"vnc","password":"ci-probe-pw"}}' \
-  '{"execute":"quit"}' | with_timeout 30 "$NATIVE" -display none -accel tcg -m 256 \
-    "${FW_ARGS[@]}" -nic none -snapshot \
-    -vnc 127.0.0.1:99,password -qmp stdio >"$VNC_LOG" 2>&1
-rc=$?
-set -e
-cat "$VNC_LOG" || true
-grep -q '"return": *{}' "$VNC_LOG" || fail "VNC set_password got no success reply (see log above)"
-if grep -q '"error"' "$VNC_LOG"; then fail "VNC set_password returned error (DES/crypto missing?)"; fi
-[[ $rc -eq 0 ]] || echo "note: vnc probe exited rc=$rc (0=clean quit)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+with_timeout 90 "$PYBIN" "$SCRIPT_DIR/qemu-vnc-des-probe.py" --qemu "$NATIVE" "${PROBE_FW[@]}" \
+  || fail "VNC DES proof failed (rc=$?)"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "==> codesign verify"
