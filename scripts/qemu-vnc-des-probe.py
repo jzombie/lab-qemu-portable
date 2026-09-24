@@ -267,11 +267,22 @@ def prove(qemu, fw_args, machine, vnc_display, qmp_port, password):
         finally:
             vnc.close()
 
-        _qmp(qmp, {"execute": "quit"})
-        qmp.close()
-        qmp = None
-        rc = proc.wait(timeout=15)
-        print("QEMU quit cleanly rc=%d" % rc, flush=True)
+        try:
+            _qmp(qmp, {"execute": "quit"})
+        except SystemExit as e:
+            print("%s (proceeding to terminate)" % e, flush=True)
+        finally:
+            qmp.close()
+            qmp = None
+        # 'quit' is best-effort: some builds ignore it while a guest runs, so
+        # never let shutdown hang the proof that already succeeded.
+        try:
+            rc = proc.wait(timeout=10)
+            print("QEMU quit cleanly rc=%d" % rc, flush=True)
+        except subprocess.TimeoutExpired:
+            print("note: QMP quit ignored, terminating", flush=True)
+            proc.kill()
+            proc.wait()
     finally:
         if qmp is not None:
             qmp.close()
