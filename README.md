@@ -57,7 +57,7 @@ A release publishes only on full-matrix runs for a new upstream version (or `for
 .github/workflows/build-qemu.yml    # QEMU: resolve -> 4-platform matrix -> release
 .github/workflows/build-wimlib.yml  # wimlib: same shape, own tags/artifacts (never triggers QEMU)
 .github/workflows/mirror-drivers.yml # weekly verified virtio-win ISO mirror (drivers-* tags)
-config/hvf-entitlements.plist       # macOS hypervisor entitlement for re-signing
+config/qemu/hvf-entitlements.plist  # macOS hypervisor entitlement for re-signing
 scripts/resolve-qemu.sh / resolve-wimlib.sh  # pick latest (or pinned) upstream version + download tarball
 scripts/build-qemu-{common,linux,macos,windows}.sh  # QEMU per-OS builds (split: apt vs brew vs MSYS2)
 scripts/build-wimlib.sh             # wimlib single-file build (all legs in one script)

@@ -102,7 +102,7 @@ done
 # LIBS FIRST, then binaries: unsigned bundled dylibs are each assessed at
 # load time, which stalls first launch for minutes on CI runners.
 # qemu-system-* get the HVF entitlement; tools and libs get plain adhoc.
-ENT="${REPO_ROOT}/config/hvf-entitlements.plist"
+ENT="${REPO_ROOT}/config/qemu/hvf-entitlements.plist"
 for lib in "$OUT"/lib/*.dylib; do
   [[ -e "$lib" ]] || continue
   codesign --force -s - "$lib"

@@ -5,17 +5,13 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-qemu.yml"
-      - "scripts/*-qemu.sh"
-      - "scripts/*-qemu-*.sh"
-      - "scripts/scrub-qemu-*.py"
-      - "config/**"
+      - "scripts/*qemu*"
+      - "config/qemu/**"
   pull_request:
     paths:
       - ".github/workflows/build-qemu.yml"
-      - "scripts/*-qemu.sh"
-      - "scripts/*-qemu-*.sh"
-      - "scripts/scrub-qemu-*.py"
-      - "config/**"
+      - "scripts/*qemu*"
+      - "config/qemu/**"
   workflow_dispatch:
     inputs:
       qemu_version:

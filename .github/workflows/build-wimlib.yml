@@ -9,17 +9,11 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-wimlib.yml"
-      - "scripts/resolve-wimlib.sh"
-      - "scripts/build-wimlib.sh"
-      - "scripts/package-wimlib.sh"
-      - "scripts/smoke-wimlib.sh"
+      - "scripts/*wimlib*"
   pull_request:
     paths:
       - ".github/workflows/build-wimlib.yml"
-      - "scripts/resolve-wimlib.sh"
-      - "scripts/build-wimlib.sh"
-      - "scripts/package-wimlib.sh"
-      - "scripts/smoke-wimlib.sh"
+      - "scripts/*wimlib*"
   workflow_dispatch:
     inputs:
       wimlib_version:
