@@ -191,6 +191,33 @@ def _recvall(sock, n, what):
     return buf
 
 
+def _quit_best_effort(sock):
+    # Shutting down races connection teardown: QEMU may RST/close the QMP
+    # connection before (or instead of) delivering quit's {"return": {}}.
+    # The DES proof already happened above — any death here means success.
+    try:
+        sock.sendall(b'{"execute":"quit"}\n')
+    except OSError as e:
+        print("note: QMP quit send failed (%s)" % e, flush=True)
+        return
+    sock.settimeout(5)
+    try:
+        while True:
+            try:
+                chunk = sock.recv(4096)
+            except (ConnectionResetError, BrokenPipeError):
+                break
+            if not chunk:
+                break
+            for line in chunk.split(b"\n"):
+                if line.strip():
+                    print("QMP bye: %s" % line.decode()[:160], flush=True)
+    except socket.timeout:
+        pass
+    except OSError as e:
+        print("note: QMP quit read ended (%s)" % e, flush=True)
+
+
 def _qmp(sock, buf, cmd):
     # Line-buffered QMP request/response. The server may coalesce several
     # JSON objects per TCP packet (e.g. SHUTDOWN event + quit return) and may
@@ -278,15 +305,11 @@ def prove(qemu, fw_args, machine, vnc_display, qmp_port, password):
         finally:
             vnc.close()
 
-        try:
-            _qmp(qmp, qbuf, {"execute": "quit"})
-        except SystemExit as e:
-            print("%s (proceeding to terminate)" % e, flush=True)
-        finally:
-            qmp.close()
-            qmp = None
-        # 'quit' is best-effort: some builds ignore it while a guest runs, so
-        # never let shutdown hang the proof that already succeeded.
+        _quit_best_effort(qmp)
+        qmp.close()
+        qmp = None
+        # Shutdown is best-effort: some builds ignore quit while a guest runs,
+        # so never let teardown hang the proof that already succeeded.
         try:
             rc = proc.wait(timeout=10)
             print("QEMU quit cleanly rc=%d" % rc, flush=True)
