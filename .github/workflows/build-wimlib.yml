@@ -10,10 +10,12 @@ on:
     paths:
       - ".github/workflows/build-wimlib.yml"
       - "scripts/*wimlib*"
+      - "scripts/select-platforms.py"
   pull_request:
     paths:
       - ".github/workflows/build-wimlib.yml"
       - "scripts/*wimlib*"
+      - "scripts/select-platforms.py"
   workflow_dispatch:
     inputs:
       wimlib_version:
@@ -84,50 +86,15 @@ jobs:
       matrix: ${{ steps.m.outputs.matrix }}
       publish: ${{ steps.m.outputs.publish }}
     steps:
+      - uses: actions/checkout@v4
       - id: m
         env:
+          PIPELINE: wimlib
           WANT: ${{ inputs.platforms || 'all' }}
           IS_NEW: ${{ needs.resolve.outputs.is_new }}
           FORCE: ${{ inputs.force }}
           EVENT: ${{ github.event_name }}
-        run: |
-          python3 - <<'EOF'
-          import json, os
-          # Same 4 legs as QEMU (macos-x64 omitted, same rationale), same
-          # digest-pinned Debian container for the Linux glibc floor.
-          DEBIAN = "debian:12@sha256:f37a335e82bca302e955fa39f9dfe28f1be618f016f8a2b56318e5a5111afc26"
-          entries = {
-            "win-x64": {"name": "win-x64-ucrt64", "os": "windows-latest",
-                        "msystem": "UCRT64"},
-            "linux-x64": {"name": "linux-x64", "os": "ubuntu-24.04",
-                          "container": DEBIAN},
-            "linux-arm64": {"name": "linux-arm64", "os": "ubuntu-24.04-arm",
-                            "container": DEBIAN},
-            "macos-arm64": {"name": "macos-arm64", "os": "macos-15"},
-          }
-          want = os.environ.get("WANT", "all").strip().lower()
-          if want in ("", "all"):
-              sel = list(entries.values())
-          else:
-              keys = [k.strip() for k in want.split(",")]
-              unknown = [k for k in keys if k not in entries]
-              if unknown:
-                  raise SystemExit(f"unknown platform(s): {unknown}; valid: {sorted(entries)}")
-              sel = [entries[k] for k in keys]
-          full = want in ("", "all")
-          # A push to main that reaches this job touched pipeline files (paths
-          # filter), so our side changed even when upstream didn't — publish
-          # a rebuild tag, no babysitting. PR builds never publish (artifacts
-          # only); same for subset runs.
-          publish = (full and os.environ.get("EVENT") != "pull_request"
-                     and (os.environ.get("IS_NEW") == "true"
-                          or os.environ.get("FORCE", "").lower() == "true"
-                          or os.environ.get("EVENT") == "push"))
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write("matrix=" + json.dumps({"include": sel}) + "\n")
-              f.write(f"publish={'true' if publish else 'false'}\n")
-          print("selected:", [e["name"] for e in sel], "publish:", publish)
-          EOF
+        run: python3 scripts/select-platforms.py
 
   build:
     name: build (${{ matrix.name }})
