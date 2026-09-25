@@ -46,8 +46,10 @@ if ! pkg-config --exists --print-errors "gnutls >= 3.7.5" 2>/dev/null \
   echo "==> nettle ${NETTLE_VER}"
   rm -rf "nettle-${NETTLE_VER}"
   tar -xzf "nettle-${NETTLE_VER}.tar.gz"
+  # NOTE: --libdir is explicit because nettle's configure guesses per-arch
+  # (lib64 on x86_64, lib on aarch64); everything downstream assumes lib/.
   ( cd "nettle-${NETTLE_VER}" && \
-    ./configure --prefix="$DEPS_PREFIX" \
+    ./configure --prefix="$DEPS_PREFIX" --libdir="${DEPS_PREFIX}/lib" \
       --disable-static --enable-shared --disable-documentation && \
     make -j"${NPROC:-4}" && make install )
 
@@ -57,7 +59,7 @@ if ! pkg-config --exists --print-errors "gnutls >= 3.7.5" 2>/dev/null \
   ( cd "gnutls-${GNUTLS_VER}" && \
     PKG_CONFIG_PATH="${DEPS_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" \
     LD_LIBRARY_PATH="${DEPS_PREFIX}/lib:${LD_LIBRARY_PATH:-}" \
-    ./configure --prefix="$DEPS_PREFIX" \
+    ./configure --prefix="$DEPS_PREFIX" --libdir="${DEPS_PREFIX}/lib" \
       --disable-static --enable-shared \
       --disable-doc --disable-tests \
       --without-tpm --without-tpm2 --disable-libdane && \
