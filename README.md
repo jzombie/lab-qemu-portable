@@ -36,7 +36,7 @@ tar -xf qemu-portable-linux-*.tar.xz   # unzip on Windows, tar -xzf on macOS
 
 Per-OS notes:
 
-- **Linux:** Debian 12 container build; runs on Debian 12+ / Ubuntu 22.04+. Self-contained: `lib/` bundled via `$ORIGIN` RPATH, no `apt install` needed (host glibc >= 2.36 only).
+- **Linux:** Debian 11 container build (glibc 2.31 floor); runs on Debian 11+ / Ubuntu 20.04+. Self-contained: `lib/` bundled via `$ORIGIN` RPATH, no `apt install` needed (host glibc >= 2.31 only).
 - **macOS:** use `-accel hvf` with `qemu-system-aarch64`. Adhoc-signed, so clear quarantine after download: `xattr -cr qemu-portable`.
 - **Windows:** exes + DLLs at folder top level. For WHPX: `DISM /online /Enable-Feature /FeatureName:HypervisorPlatform`.
 

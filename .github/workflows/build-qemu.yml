@@ -283,7 +283,7 @@ jobs:
             echo "- Full (\`targets=all\`): all softmmu emulators (FreeBSD/other arches)."
             echo "- Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via \`-display none -nographic\`."
             echo "- Layout: extract and run: Linux/macOS \`./qemu-portable/bin/qemu-system-x86_64 --version\`; Windows \`qemu-system-x86_64.exe --version\` from the extracted folder root (exes sit at the top level, no \`bin/\`). No installer/admin needed."
-            echo "- Linux built on a digest-pinned Debian 12 container (see BUILD-INFO-*.txt for the exact toolchain); macOS adhoc-signed for local HVF (\`xattr -d com.apple.quarantine\` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root."
+            echo "- Linux built on a digest-pinned Debian 11 container (glibc 2.31 floor; see BUILD-INFO-*.txt for the exact toolchain); macOS adhoc-signed for local HVF (\`xattr -d com.apple.quarantine\` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root."
             echo "- Each archive is accompanied by a \`BUILD-INFO-<platform>.txt\` provenance record (commit, runner image, compiler, container digest)."
             echo RELEASE_BODY_EOF
           } >> "$GITHUB_OUTPUT"

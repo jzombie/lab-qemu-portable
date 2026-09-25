@@ -79,11 +79,12 @@ case "$OS" in
     SRC_DIR="${SRC_DIR:-$PWD/wimlib-${VER}}"
     BUILD_DIR="${BUILD_DIR:-$PWD/build-wimlib}"
     STAGE_DIR="${STAGE_DIR:-$PWD/stage-wimlib}"
-    echo "==> Installing wimlib build deps (debian:12)"
+    echo "==> Installing wimlib build deps (debian:11, glibc 2.31 floor)"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y --no-install-recommends \
       bash bzip2 ca-certificates ccache gcc g++ git make \
+      binutils \
       libxml2-dev libssl-dev \
       tar xz-utils curl file pkgconf patchelf
     if command -v ccache >/dev/null 2>&1; then

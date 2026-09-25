@@ -20,9 +20,15 @@ import sys
 #
 # Linux container is pinned by DIGEST, not tag: the toolchain only moves when
 # this pin is deliberately bumped, turning invisible environment drift into a
-# reviewable "new binary" event. The digest below is the debian:12 manifest
-# list (covers x64 + ARM64 runners).
-DEBIAN = "debian:12@sha256:f37a335e82bca302e955fa39f9dfe28f1be618f016f8a2b56318e5a5111afc26"
+# reviewable "new binary" event. The digest below is the debian:11 (bullseye)
+# manifest list (covers x64 + ARM64 runners) — glibc 2.31 floor, the oldest
+# baseline that still satisfies QEMU 11's build minimums (glib >= 2.66,
+# python >= 3.9). glibc is backward-compatible, so a 2.31 binary runs on
+# 2.31+ hosts (Debian 11+, Ubuntu 20.04+, RHEL 9+). See build-qemu-linux.sh:
+# bullseye's gcc (10.2) is below QEMU 11's GCC >= 10.4 minimum, so the Linux
+# legs build with clang 11 (meets the Clang >= 10.0 minimum) from the same
+# container.
+DEBIAN = "debian:11@sha256:6f519a81440354a85eb592c5f32109ab80605f6b892455983a6f618bf87fabe9"
 
 ENTRIES = {
     "qemu": {

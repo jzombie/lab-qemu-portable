@@ -27,8 +27,9 @@ mkdir -p "$OUT/lib"
 # Only the glibc/loader core stays host-provided; everything else (glib,
 # pixman, slirp, SDL2, libusb, libseccomp, libcap-ng, libffi, zlib, libstdc++,
 # ...) ships in lib/ with an $ORIGIN RPATH. patchelf is installed by
-# build-qemu-linux.sh. glibc floor still applies: build on Debian 12 -> runs on
-# Debian 12+ / Ubuntu 22.04+.
+# build-qemu-linux.sh. glibc floor still applies: build on Debian 11 -> runs on
+# Debian 11+ / Ubuntu 20.04+ (glibc >= 2.31 from host). The baseline check at
+# the end fails the build if any binary needs a newer GLIBC.
 is_host_lib() {
   case "$1" in
     linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread.so*|libdl.so*|\
@@ -93,13 +94,17 @@ done
 echo "bundled $(ls "$OUT/lib" | wc -l | tr -d ' ') libs in $OUT/lib"
 
 cat > "$OUT/README.portable" <<EOF
-QEMU ${VER} portable (Linux ${ARCH}, Debian 12 glibc floor).
+QEMU ${VER} portable (Linux ${ARCH}, Debian 11 glibc floor).
 Layout: bin/qemu-system-*, bin/qemu-img, lib/*.so*, share/qemu firmware.
 No install needed: ./bin/qemu-system-x86_64 --version
-Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= 2.36 from host).
+Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= 2.31 from host).
 Headless: ./bin/qemu-system-x86_64 -display none -accel kvm,tcg -nographic
 EOF
 echo "$VER" > "$OUT/VERSION"
+
+# Fail-closed glibc floor check: must match the select-platforms.py container
+# (debian:11 -> GLIBC 2.31). Catches toolchain drift before release.
+bash "${SCRIPT_DIR}/check-glibc-baseline.sh" 2.31 "$OUT"/bin/* "$OUT"/lib/*.so*
 
 mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-linux-${ARCH}-${VER}.tar.xz"
