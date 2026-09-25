@@ -21,6 +21,7 @@ apt-get install -y --no-install-recommends \
   libncurses-dev \
   libgnutls28-dev nettle-dev \
   libfdt-dev device-tree-compiler \
+  libgmp-dev libidn2-dev libp11-kit-dev libtasn1-6-dev libunistring-dev \
   zlib1g-dev m4 make meson ninja-build pkgconf python3 python3-venv \
   python3-pip python3-setuptools python3-wheel python3-tomli \
   tar xz-utils curl patchelf
