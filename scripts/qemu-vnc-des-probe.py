@@ -191,18 +191,28 @@ def _recvall(sock, n, what):
     return buf
 
 
-def _qmp(sock, cmd):
+def _qmp(sock, buf, cmd):
+    # Line-buffered QMP request/response. The server may coalesce several
+    # JSON objects per TCP packet (e.g. SHUTDOWN event + quit return) and may
+    # interleave async events, so consume exactly one line per reply and skip
+    # anything that isn't this command's response.
     sock.sendall((json.dumps(cmd) + "\n").encode())
-    line = b""
-    while not line.endswith(b"\n"):
-        chunk = sock.recv(4096)
-        if not chunk:
-            raise SystemExit("FAIL: EOF on QMP socket during %s" % cmd)
-        line += chunk
-    reply = json.loads(line.decode())
-    if "error" in reply:
-        raise SystemExit("FAIL: QMP %s -> error %s" % (cmd, reply["error"]))
-    return reply
+    while True:
+        while b"\n" not in buf[0]:
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise SystemExit("FAIL: EOF on QMP socket during %s" % cmd)
+            buf[0] += chunk
+        line, buf[0] = buf[0].split(b"\n", 1)
+        if not line.strip():
+            continue
+        reply = json.loads(line.decode())
+        if "event" in reply:
+            print("QMP event: %s" % reply["event"], flush=True)
+            continue
+        if "error" in reply:
+            raise SystemExit("FAIL: QMP %s -> error %s" % (cmd, reply["error"]))
+        return reply
 
 
 def prove(qemu, fw_args, machine, vnc_display, qmp_port, password):
@@ -232,14 +242,15 @@ def prove(qemu, fw_args, machine, vnc_display, qmp_port, password):
                     raise SystemExit("FAIL: QMP never came up")
                 time.sleep(0.5)
         qmp.settimeout(10)
-        # QMP greeting is one JSON line.
-        greet = b""
-        while not greet.endswith(b"\n"):
-            greet += qmp.recv(4096)
+        qbuf = [b""]
+        # QMP greeting is one JSON line (buffered: more may already coalesce).
+        while b"\n" not in qbuf[0]:
+            qbuf[0] += qmp.recv(4096)
+        greet, qbuf[0] = qbuf[0].split(b"\n", 1)
         print("QMP greeting: %s" % greet.decode().strip(), flush=True)
-        _qmp(qmp, {"execute": "qmp_capabilities"})
-        r = _qmp(qmp, {"execute": "set_password",
-                       "arguments": {"protocol": "vnc", "password": password}})
+        _qmp(qmp, qbuf, {"execute": "qmp_capabilities"})
+        r = _qmp(qmp, qbuf, {"execute": "set_password",
+                             "arguments": {"protocol": "vnc", "password": password}})
         print("set_password -> %s" % r, flush=True)
 
         vnc = socket.create_connection(("127.0.0.1", 5900 + vnc_display), timeout=10)
@@ -268,7 +279,7 @@ def prove(qemu, fw_args, machine, vnc_display, qmp_port, password):
             vnc.close()
 
         try:
-            _qmp(qmp, {"execute": "quit"})
+            _qmp(qmp, qbuf, {"execute": "quit"})
         except SystemExit as e:
             print("%s (proceeding to terminate)" % e, flush=True)
         finally:
