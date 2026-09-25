@@ -15,7 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="$PWD/wininstall"
 # shellcheck disable=SC1091
-source "${SCRIPT_DIR}/build-common.sh"
+source "${SCRIPT_DIR}/build-qemu-common.sh"
 
 SRC_DIR="${SRC_DIR:-$PWD/qemu-${QEMU_VERSION:?set QEMU_VERSION}}"
 BUILD_DIR="${BUILD_DIR:-$PWD/build}"
@@ -34,6 +34,9 @@ pacman -S --noconfirm --needed \
   "${MINGW_PACKAGE_PREFIX}-SDL2" \
   "${MINGW_PACKAGE_PREFIX}-libusb" \
   "${MINGW_PACKAGE_PREFIX}-libssh" \
+  "${MINGW_PACKAGE_PREFIX}-gnutls" \
+  "${MINGW_PACKAGE_PREFIX}-libgcrypt" \
+  "${MINGW_PACKAGE_PREFIX}-dtc" \
   "${MINGW_PACKAGE_PREFIX}-zstd" \
   "${MINGW_PACKAGE_PREFIX}-ccache"
 
@@ -46,7 +49,14 @@ echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-qemu_configure "$SRC_DIR" --enable-whpx --enable-tcg --enable-sdl --disable-gtk --disable-plugins
+qemu_configure "$SRC_DIR" --enable-whpx --enable-tcg --enable-sdl --disable-gtk --disable-plugins \
+  --enable-gnutls --enable-gcrypt 2>&1 | tee configure.log
+# NOTE: gcrypt here, not nettle: MSYS2 ships nettle 4.0, which removed the
+# sha.h/md5.h headers QEMU 11.1.1 needs. gcrypt's API is stable and provides
+# DES all the same (proven by the VNC DES smoke proof).
+
+echo "==> Verifying crypto backends (VNC password needs DES via gcrypt)"
+verify_crypto gcrypt
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"

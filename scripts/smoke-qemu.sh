@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Shared smoke test. Native-arch emulator ONLY — no cross-arch binaries are
-# built, shipped, or executed (see build-common.sh arch policy).
+# built, shipped, or executed (see build-qemu-common.sh arch policy).
 # Checks: --version, accel backends, qemu-img, firmware presence, headless
-# TCG boot probe of the native emulator. No KVM/HVF/WHPX required.
+# TCG boot probe of the native emulator, VNC DES proof (real RFB handshake).
+# No KVM/HVF/WHPX required.
 # Every guest binary invocation goes through with_timeout: first launch of an
 # adhoc-signed binary on macOS can stall for minutes in Gatekeeper assessment,
 # and a stall must fail loudly instead of hanging the job silently.
@@ -124,6 +125,25 @@ else
   set -e
 fi
 [[ $rc -eq 124 || $rc -eq 137 ]] || echo "note: probe exited rc=$rc (124/137=timeout/OK)"
+
+echo "==> VNC DES proof (RFB handshake with real DES-encrypted challenge)"
+# Full proof that DES works end-to-end: qemu-vnc-des-probe.py boots the guest with
+# a password-protected VNC server, sets the password over QMP/TCP, then acts
+# as a real VNC client — reads the 16-byte challenge, DES-encrypts it with the
+# password key, and requires auth-OK from the server. The script self-tests
+# its DES against the FIPS known-answer vector first, so a failure here
+# indicts the QEMU binary, never the test cipher.
+PYBIN="$(command -v python3 || command -v python)"
+if [[ "$NATIVE" == *"x86_64"* ]]; then
+  [[ -f "$FWDIR/bios-256k.bin" ]] || fail "missing bios-256k.bin"
+  PROBE_FW=(--bios "$FWDIR/bios-256k.bin")
+else
+  [[ -f "$FWDIR/edk2-aarch64-code.fd" ]] || fail "missing edk2-aarch64-code.fd"
+  PROBE_FW=(--pflash "$FWDIR/edk2-aarch64-code.fd" --machine virt)
+fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+with_timeout 90 "$PYBIN" "$SCRIPT_DIR/qemu-vnc-des-probe.py" --qemu "$NATIVE" "${PROBE_FW[@]}" \
+  || fail "VNC DES proof failed (rc=$?)"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "==> codesign verify"

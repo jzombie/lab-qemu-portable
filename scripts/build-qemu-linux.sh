@@ -4,7 +4,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
-source "${SCRIPT_DIR}/build-common.sh"
+source "${SCRIPT_DIR}/build-qemu-common.sh"
 
 SRC_DIR="${SRC_DIR:-$PWD/qemu-${QEMU_VERSION:?set QEMU_VERSION}}"
 BUILD_DIR="${BUILD_DIR:-$PWD/build}"
@@ -18,6 +18,8 @@ apt-get install -y --no-install-recommends \
   libcapstone-dev libffi-dev libglib2.0-dev libpixman-1-dev \
   libslirp-dev libsdl2-dev libusb-1.0-0-dev libseccomp-dev libcap-ng-dev \
   libncurses-dev \
+  libgnutls28-dev nettle-dev \
+  libfdt-dev device-tree-compiler \
   zlib1g-dev make meson ninja-build pkgconf python3 python3-venv \
   python3-pip python3-setuptools python3-wheel \
   tar xz-utils curl file patchelf
@@ -31,7 +33,15 @@ echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs --enable-sdl
+qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs --enable-sdl \
+  --enable-gnutls --enable-nettle 2>&1 | tee configure.log
+# NOTE: nettle OR gcrypt (meson errors if both are enabled) — nettle here
+# because Debian 12 ships nettle 3.x with intact headers. macOS/Windows use
+# gcrypt (their nettle is 4.0, which removed sha.h/md5.h that QEMU 11.1.1
+# needs). DES works via either backend; the VNC smoke proof covers both.
+
+echo "==> Verifying crypto backends (VNC password needs DES via nettle)"
+verify_crypto nettle
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"

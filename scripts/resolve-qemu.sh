@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Resolve which QEMU version to build.
-# Usage: resolve-version.sh [auto|X.Y.Z]
+# Usage: resolve-qemu.sh [auto|X.Y.Z]
 #  - Writes version= / tarball= to $GITHUB_OUTPUT (if set) and stdout.
 #  - Downloads the tarball into the current directory.
 set -euo pipefail

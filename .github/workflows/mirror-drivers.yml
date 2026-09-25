@@ -83,6 +83,9 @@ jobs:
   release:
     name: Release driver pack
     needs: [resolve, mirror]
+    # Releases are never overwritten: a new mirror date takes
+    # drivers-YYYYMMDD, same-day rebuilds (force) take
+    # drivers-YYYYMMDD-<run_number>.
     if: needs.mirror.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -90,12 +93,34 @@ jobs:
         with:
           name: drivers
           path: dist
+      - id: meta
+        env:
+          BASE_TAG: ${{ needs.resolve.outputs.tag }}
+          IS_NEW: ${{ needs.resolve.outputs.is_new }}
+          SQUASH_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if [[ "$IS_NEW" == "true" ]]; then
+            tag="$BASE_TAG"
+          else
+            tag="${BASE_TAG}-${GITHUB_RUN_NUMBER}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          {
+            echo 'body<<RELEASE_BODY_EOF'
+            if [[ -n "$SQUASH_MSG" ]]; then
+              # Squash-merged PR title+body: what changed and why.
+              echo "$SQUASH_MSG"
+              echo
+              echo "---"
+            fi
+            echo "Verified mirror of the virtio-win driver ISO (\`virtio-win.iso\` + \`virtio-win.iso.sha256\` + \`SOURCES.txt\`) rsynced from fedorapeople \`stable-virtio\`."
+            echo "For headless Windows installs: attach as a second cdrom alongside the installer ISO and your \`Autounattend.xml\` drive."
+            echo "Drop-in replacement for fetching from upstream at install time."
+            echo RELEASE_BODY_EOF
+          } >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.resolve.outputs.tag }}
-          name: virtio-win driver pack (${{ needs.resolve.outputs.tag }})
-          body: |
-            Verified mirror of the virtio-win driver ISO (`virtio-win.iso` + `virtio-win.iso.sha256` + `SOURCES.txt`) rsynced from fedorapeople `stable-virtio`.
-            For headless Windows installs: attach as a second cdrom alongside the installer ISO and your `Autounattend.xml` drive.
-            Drop-in replacement for fetching from upstream at install time.
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: virtio-win driver pack (${{ steps.meta.outputs.tag }})
+          body: ${{ steps.meta.outputs.body }}
           files: dist/*

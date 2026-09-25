@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared configure-flag logic. Sourced by build-linux/macos/windows.sh.
+# Shared configure-flag logic. Sourced by build-qemu-linux/macos/windows.sh.
 # Env in:  TARGETS_MODE (native|both|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
 # Env out: CONFIGURE_ARGS (bash array), NPROC
 #
@@ -39,8 +39,12 @@ else
 fi
 export NPROC
 
+# NOTE: --enable-fdt=system (not internal): internal makes meson git-fetch
+# the pinned dtc subproject revision, which fails whenever the remote won't
+# serve that SHA. Distro libfdt is stable API; every leg installs it
+# (libfdt-dev / brew dtc / mingw dtc).
 # NOTE: --enable-virtfs is intentionally NOT here (Linux-only; breaks
-# macOS/Windows configure). build-linux.sh appends it.
+# macOS/Windows configure). build-qemu-linux.sh appends it.
 CONFIGURE_ARGS=(
   "--prefix=${PREFIX}"
   "--sysconfdir=${PREFIX}/etc"
@@ -49,7 +53,7 @@ CONFIGURE_ARGS=(
   --disable-bsd-user
   --enable-slirp
   --enable-capstone
-  --enable-fdt=internal
+  --enable-fdt=system
   --disable-werror
   --disable-docs
   --enable-vnc
@@ -57,7 +61,7 @@ CONFIGURE_ARGS=(
   --enable-curses
 )
 # NOTE: no --enable-sdl here — SDL is per-OS. Linux/Windows enable it;
-# macOS disables it (see build-macos.sh): Homebrew's `sdl` formula is now the
+# macOS disables it (see build-qemu-macos.sh): Homebrew's `sdl` formula is now the
 # sdl2-compat shim, whose load-time initializer dlopens SDL3 and pops a
 # blocking NSAlert dialog when that fails — hanging even `qemu --version`
 # forever on headless runners. Cocoa is the native macOS UI; nothing needs SDL.
@@ -73,4 +77,23 @@ qemu_configure() {
   local src="$1"; shift
   echo "+ ${src}/configure ${CONFIGURE_ARGS[*]} $*"
   "${src}/configure" "${CONFIGURE_ARGS[@]}" "$@"
+}
+
+verify_crypto() {
+  # $1 = crypto backend: nettle|gcrypt. Asserts GNUTLS + backend show YES in
+  # configure.log (VNC password needs DES via either). Fail-fast: a missing
+  # backend means configure silently dropped it.
+  # NOTE: config-host.mak variable names for these backends aren't stable
+  # across QEMU versions, so assert on the configure summary instead.
+  local backend="$1" label
+  case "$backend" in
+    nettle) label="nettle" ;;
+    gcrypt) label="libgcrypt" ;;
+    *) echo "ERROR: verify_crypto: unknown backend '$backend' (want nettle|gcrypt)" >&2; return 1 ;;
+  esac
+  grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
+    || { echo "ERROR: GNUTLS not enabled" >&2; return 1; }
+  grep -Eq "^[[:space:]]*${label}[[:space:]]*:[[:space:]]*YES" configure.log \
+    || { echo "ERROR: $label not enabled" >&2; return 1; }
+  echo "crypto OK: GNUTLS + $label"
 }

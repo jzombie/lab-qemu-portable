@@ -19,7 +19,7 @@ cp -a "${ROOT}/share" "$OUT/share"
 mkdir -p "$OUT/etc"
 cp -a "${ROOT}/etc/." "$OUT/etc/" 2>/dev/null || true
 
-python3 "${SCRIPT_DIR}/scrub-firmware-json.py" "$OUT/share/qemu"
+python3 "${SCRIPT_DIR}/scrub-qemu-firmware.py" "$OUT/share/qemu"
 
 # Bundle every non-system dylib to fixpoint closure (Homebrew /opt/homebrew,
 # XQuartz /opt/X11, etc. — NOT just one prefix or one level; libxcb->libXau
@@ -102,7 +102,7 @@ done
 # LIBS FIRST, then binaries: unsigned bundled dylibs are each assessed at
 # load time, which stalls first launch for minutes on CI runners.
 # qemu-system-* get the HVF entitlement; tools and libs get plain adhoc.
-ENT="${REPO_ROOT}/config/hvf-entitlements.plist"
+ENT="${REPO_ROOT}/config/qemu/hvf-entitlements.plist"
 for lib in "$OUT"/lib/*.dylib; do
   [[ -e "$lib" ]] || continue
   codesign --force -s - "$lib"
@@ -130,6 +130,6 @@ EOF
 mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-macos-${ARCH}-${VER}.tar.gz"
 tar -czf "$PKG" -C "$PWD" qemu-portable
-# NOTE: keep $OUT in place — the smoke-test step runs next against this tree.
+# NOTE: keep $OUT in place — the smoke-qemu step runs next against this tree.
 echo "wrote $PKG"
 ls -lh "$PKG"

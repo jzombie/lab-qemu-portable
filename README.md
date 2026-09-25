@@ -13,9 +13,9 @@ Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib]
 | Host | Archive | Inside |
 |---|---|---|
 | Windows x86_64 (UCRT64) | `qemu-portable-win-x64-UCRT64-<ver>.zip` | `qemu-system-x86_64.exe` + DLLs at top level, `share/` firmware |
-| Linux x86_64 | `qemu-portable-linux-x86_64-<ver>.tar.xz` | `bin/qemu-system-x86_64`, `bin/qemu-img`, `share/qemu/` |
-| Linux ARM64 | `qemu-portable-linux-aarch64-<ver>.tar.xz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `share/qemu/` |
-| macOS ARM64 (Apple Silicon) | `qemu-portable-macos-arm64-<ver>.tar.gz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `share/qemu/` |
+| Linux x86_64 | `qemu-portable-linux-x86_64-<ver>.tar.xz` | `bin/qemu-system-x86_64`, `bin/qemu-img`, `lib/*.so*`, `share/qemu/` |
+| Linux ARM64 | `qemu-portable-linux-aarch64-<ver>.tar.xz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `lib/*.so*`, `share/qemu/` |
+| macOS ARM64 (Apple Silicon) | `qemu-portable-macos-arm64-<ver>.tar.gz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `lib/*.dylib`, `share/qemu/` |
 
 Coverage: Linux ships both arches, Windows is x86_64-only, macOS is Apple Silicon-only.
 
@@ -36,7 +36,7 @@ tar -xf qemu-portable-linux-*.tar.xz   # unzip on Windows, tar -xzf on macOS
 
 Per-OS notes:
 
-- **Linux:** Debian 12 container build; runs on Debian 12+ / Ubuntu 22.04+. Missing libs: `apt install libglib2.0-0 libpixman-1-0 libslirp0 libsdl2-2.0-0`.
+- **Linux:** Debian 12 container build; runs on Debian 12+ / Ubuntu 22.04+. Self-contained: `lib/` bundled via `$ORIGIN` RPATH, no `apt install` needed (host glibc >= 2.36 only).
 - **macOS:** use `-accel hvf` with `qemu-system-aarch64`. Adhoc-signed, so clear quarantine after download: `xattr -cr qemu-portable`.
 - **Windows:** exes + DLLs at folder top level. For WHPX: `DISM /online /Enable-Feature /FeatureName:HypervisorPlatform`.
 
@@ -49,7 +49,7 @@ Actions → **build-qemu-portable** (or **build-wimlib-portable**) → Run workf
 - `platforms`: `all` or subset (`win-x64,linux-x64,linux-arm64,macos-arm64`).
 - `force`: republish an existing version (e.g. toolchain rebuild).
 
-A release publishes only on full-matrix runs for a new upstream version (or `force`). Pushes to `main` and the weekly schedule build with defaults for validation (artifacts only). Every artifact ships a `BUILD-INFO-*.txt` provenance record and `SHA256SUMS.txt`.
+A release publishes only on full-matrix runs for a new upstream version (or `force`). Pushes to `main` and the weekly schedule build with defaults for validation (artifacts only). Every artifact ships a `BUILD-INFO-*.txt` provenance record and `SHA256SUMS.txt`. Releases are never overwritten: new versions take `qemu-vX.Y.Z`, rebuilds take `qemu-vX.Y.Z-<run_number>` with the squash-merged commit message as notes.
 
 ## Repo layout
 
@@ -57,12 +57,12 @@ A release publishes only on full-matrix runs for a new upstream version (or `for
 .github/workflows/build-qemu.yml    # QEMU: resolve -> 4-platform matrix -> release
 .github/workflows/build-wimlib.yml  # wimlib: same shape, own tags/artifacts (never triggers QEMU)
 .github/workflows/mirror-drivers.yml # weekly verified virtio-win ISO mirror (drivers-* tags)
-config/hvf-entitlements.plist       # macOS hypervisor entitlement for re-signing
-scripts/resolve-*.sh                # pick latest (or pinned) upstream version + download tarball
-scripts/build-{linux,macos,windows}.sh   # QEMU per-OS builds
-scripts/build-wimlib.sh             # wimlib per-OS build (pinned source, all legs)
-scripts/package-*.sh                # portable trees: dylib/DLL bundling, path rewrite, re-sign
-scripts/smoke-*.sh                  # version/accel/firmware/boot checks per build
-scripts/scrub-firmware-json.py      # make firmware descriptors location-independent
+config/qemu/hvf-entitlements.plist  # macOS hypervisor entitlement for re-signing
+scripts/resolve-qemu.sh / resolve-wimlib.sh  # pick latest (or pinned) upstream version + download tarball
+scripts/build-qemu-{common,linux,macos,windows}.sh  # QEMU per-OS builds (split: apt vs brew vs MSYS2)
+scripts/build-wimlib.sh             # wimlib single-file build (all legs in one script)
+scripts/package-qemu-{linux,macos,windows}.sh / package-wimlib.sh  # portable trees: so/dylib/DLL bundling, path rewrite, re-sign
+scripts/smoke-qemu.sh / smoke-wimlib.sh  # version/accel/firmware/boot checks per build
+scripts/scrub-qemu-firmware.py      # make firmware descriptors location-independent
 scripts/mirror-virtio.sh            # rsync virtio-win ISO + ISO-magic/sha256 verify
 ```

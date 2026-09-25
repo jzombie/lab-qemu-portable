@@ -9,17 +9,11 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-wimlib.yml"
-      - "scripts/resolve-wimlib.sh"
-      - "scripts/build-wimlib.sh"
-      - "scripts/package-wimlib.sh"
-      - "scripts/smoke-wimlib.sh"
+      - "scripts/*wimlib*"
   pull_request:
     paths:
       - ".github/workflows/build-wimlib.yml"
-      - "scripts/resolve-wimlib.sh"
-      - "scripts/build-wimlib.sh"
-      - "scripts/package-wimlib.sh"
-      - "scripts/smoke-wimlib.sh"
+      - "scripts/*wimlib*"
   workflow_dispatch:
     inputs:
       wimlib_version:
@@ -251,6 +245,8 @@ jobs:
   release:
     name: Release portable wimlib binaries
     needs: [resolve, setup, build]
+    # Releases are never overwritten: a new upstream version takes
+    # wimlib-vX.Y.Z, rebuilds take wimlib-vX.Y.Z-<run_number>.
     if: needs.setup.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -264,14 +260,40 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
           ls -lh
+      - id: meta
+        env:
+          VER: ${{ needs.resolve.outputs.version }}
+          IS_NEW: ${{ needs.resolve.outputs.is_new }}
+          SQUASH_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          base="wimlib-v${VER}"
+          if [[ "$IS_NEW" == "true" ]]; then
+            tag="$base"
+            title="wimlib ${VER} portable"
+          else
+            tag="${base}-${GITHUB_RUN_NUMBER}"
+            title="wimlib ${VER} portable rebuild ${GITHUB_RUN_NUMBER}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "name=$title" >> "$GITHUB_OUTPUT"
+          {
+            echo 'body<<RELEASE_BODY_EOF'
+            if [[ -n "$SQUASH_MSG" ]]; then
+              # Squash-merged PR title+body: what changed and why.
+              echo "$SQUASH_MSG"
+              echo
+              echo "---"
+            fi
+            echo "Portable zero-install wimlib ${VER} (wimlib-imagex + bundled libs)."
+            echo "Overlays onto qemu-portable: copy \`bin/wimlib-imagex\` (Linux/macOS) or \`wimlib-imagex.exe\` (Windows, extracted folder root with no \`bin/\`) next to the qemu binaries."
+            echo "Built from pinned source (https://wimlib.net/downloads); no admin/install needed."
+            echo "macOS adhoc-signed (\`xattr -cr\` may be needed after download)."
+            echo "Each archive ships with a \`BUILD-INFO-wimlib-<platform>.txt\` provenance record."
+            echo RELEASE_BODY_EOF
+          } >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: wimlib-v${{ needs.resolve.outputs.version }}
-          name: wimlib ${{ needs.resolve.outputs.version }} portable
-          body: |
-            Portable zero-install wimlib ${{ needs.resolve.outputs.version }} (wimlib-imagex + bundled libs).
-            Overlays onto qemu-portable: copy `bin/wimlib-imagex` (Linux/macOS) or `wimlib-imagex.exe` (Windows, extracted folder root with no `bin/`) next to the qemu binaries.
-            Built from pinned source (https://wimlib.net/downloads); no admin/install needed.
-            macOS adhoc-signed (`xattr -cr` may be needed after download).
-            Each archive ships with a `BUILD-INFO-wimlib-<platform>.txt` provenance record.
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.name }}
+          body: ${{ steps.meta.outputs.body }}
           files: dist/*
