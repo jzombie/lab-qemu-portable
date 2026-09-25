@@ -34,6 +34,8 @@ pacman -S --noconfirm --needed \
   "${MINGW_PACKAGE_PREFIX}-SDL2" \
   "${MINGW_PACKAGE_PREFIX}-libusb" \
   "${MINGW_PACKAGE_PREFIX}-libssh" \
+  "${MINGW_PACKAGE_PREFIX}-gnutls" \
+  "${MINGW_PACKAGE_PREFIX}-nettle" \
   "${MINGW_PACKAGE_PREFIX}-dtc" \
   "${MINGW_PACKAGE_PREFIX}-zstd" \
   "${MINGW_PACKAGE_PREFIX}-ccache"
@@ -47,7 +49,18 @@ echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-qemu_configure "$SRC_DIR" --enable-whpx --enable-tcg --enable-sdl --disable-gtk --disable-plugins
+qemu_configure "$SRC_DIR" --enable-whpx --enable-tcg --enable-sdl --disable-gtk --disable-plugins \
+  --enable-gnutls --enable-nettle 2>&1 | tee configure.log
+# NOTE: nettle OR gcrypt (meson errors if both are enabled) — nettle matches
+# the Linux/macOS legs, where VNC passwords work.
+
+echo "==> Verifying crypto backends (VNC password needs DES via nettle)"
+# config-host.mak variable names for these backends aren't stable across QEMU
+# versions, so assert on the configure summary instead (e.g. "nettle : YES").
+grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
+  || { echo "ERROR: GNUTLS not enabled"; exit 1; }
+grep -Eq '^[[:space:]]*nettle[[:space:]]*:[[:space:]]*YES' configure.log \
+  || { echo "ERROR: nettle not enabled"; exit 1; }
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"
