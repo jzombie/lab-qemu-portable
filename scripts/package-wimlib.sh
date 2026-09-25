@@ -213,11 +213,73 @@ EOF
     rm -rf "$OUT"
     mkdir -p "$OUT"
     cp -a "${ROOT}/." "$OUT/"
+    mkdir -p "$OUT/lib"
+    # Bundle third-party shared libs (libxml2, libssl, libcrypto, libz, ...)
+    # so the binary runs without apt installs. Same pattern as
+    # package-qemu-linux.sh: only the glibc/loader core stays host-provided.
+    # The binary's $ORIGIN/../lib rpath is already set by build-wimlib.sh.
+    is_host_lib() {
+      case "$1" in
+        linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread.so*|libdl.so*|\
+        librt.so*|libresolv.so*|libcrypt.so*|libutil.so*|libnss_*|libnsl.so*)
+          return 0 ;;
+        *) return 1 ;;
+      esac
+    }
+    ldd_paths() {
+      ldd "$1" 2>/dev/null | awk '
+        $2 == "=>" && $3 ~ /^\// { print $3 }
+        $2 != "=>" && $1 ~ /^\// { print $1 }
+      ' | sort -u
+    }
+    for _ in 1 2 3 4 5 6 7 8; do
+      changed=0
+      for target in "$OUT"/bin/* "$OUT"/lib/*.so*; do
+        [[ -e "$target" ]] || continue
+        file -b "$target" 2>/dev/null | grep -q ELF || continue
+        while IFS= read -r dep; do
+          [[ -n "$dep" ]] || continue
+          base="$(basename "$dep")"
+          if is_host_lib "$base"; then continue; fi
+          if [[ ! -e "$OUT/lib/$base" ]]; then
+            if [[ -f "$dep" ]]; then
+              cp -L -n "$dep" "$OUT/lib/$base" || true
+              changed=1
+            else
+              echo "warning: missing on disk: $dep (needed by $target)" >&2
+            fi
+          fi
+        done < <(ldd_paths "$target")
+      done
+      [[ "$changed" == "0" ]] && break
+    done
+    for lib in "$OUT"/lib/*.so*; do
+      [[ -e "$lib" ]] || continue
+      file -b "$lib" 2>/dev/null | grep -q ELF || continue
+      patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
+    done
+    missing=0
+    for bin in "$OUT"/bin/*; do
+      [[ -e "$bin" ]] || continue
+      file -b "$bin" 2>/dev/null | grep -q ELF || continue
+      if ldd "$bin" 2>/dev/null | grep -q "not found"; then
+        echo "ERROR: $bin has unresolved libs:" >&2
+        ldd "$bin" 2>/dev/null | grep "not found" >&2
+        missing=1
+      fi
+    done
+    [[ "$missing" == "0" ]] || { echo "so closure incomplete" >&2; exit 1; }
+    echo "bundled $(ls "$OUT/lib" | wc -l | tr -d ' ') libs in $OUT/lib"
+    # Fail-closed glibc floor check. GLIBC_FLOOR arrives from CI (single
+    # source: GLIBC_FLOOR in scripts/select-platforms.py); fallback keeps
+    # local runs working.
+    GLIBC_FLOOR="${GLIBC_FLOOR:-2.35}"
+    bash "${SCRIPT_DIR}/check-glibc-baseline.sh" "$GLIBC_FLOOR" "$OUT"/bin/* "$OUT"/lib/*.so*
     cat > "$OUT/README.portable" <<EOF
-wimlib ${VER} portable (Linux ${ARCH}, Debian 12 glibc floor).
-Layout: bin/wimlib-imagex (+ libwim shared libs).
+wimlib ${VER} portable (Linux ${ARCH}, glibc ${GLIBC_FLOOR} floor).
+Layout: bin/wimlib-imagex, lib/*.so*, share/.
 No install needed: ./bin/wimlib-imagex --version
-Runtime deps (usually preinstalled): libxml2 libssl3
+Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= ${GLIBC_FLOOR} from host).
 Overlays onto qemu-portable: copy bin/wimlib-imagex next to qemu binaries.
 EOF
     echo "$VER" > "$OUT/VERSION"

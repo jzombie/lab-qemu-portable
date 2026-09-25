@@ -13,6 +13,18 @@ ROOT="${STAGE_DIR}${PREFIX}"
 test -x "${ROOT}/bin/qemu-system-x86_64" || test -x "${ROOT}/bin/qemu-system-aarch64" \
   || { echo "no qemu-system binary under $ROOT/bin"; exit 1; }
 
+# Prefer the pinned source-built deps (/opt/qemudeps) when resolving the
+# ldd closure below. The container also ships older same-SONAME copies
+# (e.g. system libnettle 3.7 vs built 3.10): ldd follows loader order and
+# ld.so.cache can win, bundling the older lib while the binaries expect the
+# newer symbols (sm3, ...). LD_LIBRARY_PATH outranks the cache, so the loop
+# copies the exact libs the binaries were linked against. At runtime on user
+# hosts this variable is unset and $ORIGIN RPATH takes over instead.
+DEPS_PREFIX="${DEPS_PREFIX:-/opt/qemudeps}"
+if [[ -d "$DEPS_PREFIX/lib" ]]; then
+  export LD_LIBRARY_PATH="$DEPS_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+
 python3 "${SCRIPT_DIR}/scrub-qemu-firmware.py" "${ROOT}/share/qemu"
 
 # Portable folder layout: dist/qemu-portable/{bin,lib,share,etc}
@@ -27,8 +39,9 @@ mkdir -p "$OUT/lib"
 # Only the glibc/loader core stays host-provided; everything else (glib,
 # pixman, slirp, SDL2, libusb, libseccomp, libcap-ng, libffi, zlib, libstdc++,
 # ...) ships in lib/ with an $ORIGIN RPATH. patchelf is installed by
-# build-qemu-linux.sh. glibc floor still applies: build on Debian 12 -> runs on
-# Debian 12+ / Ubuntu 22.04+.
+# build-qemu-linux.sh. glibc floor still applies: build on Ubuntu 22.04 -> runs
+# on Ubuntu 22.04+ / Debian 12+ (glibc >= 2.35 from host). The baseline check
+# at the end fails the build if any binary needs a newer GLIBC.
 is_host_lib() {
   case "$1" in
     linux-vdso*|ld-linux*|libc.so*|libm.so*|libpthread.so*|libdl.so*|\
@@ -92,14 +105,21 @@ done
 [[ "$missing" == "0" ]] || { echo "so closure incomplete" >&2; exit 1; }
 echo "bundled $(ls "$OUT/lib" | wc -l | tr -d ' ') libs in $OUT/lib"
 
+# GLIBC_FLOOR arrives from CI (single source: GLIBC_FLOOR in
+# scripts/select-platforms.py, via setup job outputs); the fallback keeps
+# local runs working.
+GLIBC_FLOOR="${GLIBC_FLOOR:-2.35}"
 cat > "$OUT/README.portable" <<EOF
-QEMU ${VER} portable (Linux ${ARCH}, Debian 12 glibc floor).
+QEMU ${VER} portable (Linux ${ARCH}, glibc ${GLIBC_FLOOR} floor).
 Layout: bin/qemu-system-*, bin/qemu-img, lib/*.so*, share/qemu firmware.
 No install needed: ./bin/qemu-system-x86_64 --version
-Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= 2.36 from host).
+Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= ${GLIBC_FLOOR} from host).
 Headless: ./bin/qemu-system-x86_64 -display none -accel kvm,tcg -nographic
 EOF
 echo "$VER" > "$OUT/VERSION"
+
+# Fail-closed glibc floor check. Catches toolchain drift before release.
+bash "${SCRIPT_DIR}/check-glibc-baseline.sh" "$GLIBC_FLOOR" "$OUT"/bin/* "$OUT"/lib/*.so*
 
 mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-linux-${ARCH}-${VER}.tar.xz"

@@ -20,9 +20,21 @@ import sys
 #
 # Linux container is pinned by DIGEST, not tag: the toolchain only moves when
 # this pin is deliberately bumped, turning invisible environment drift into a
-# reviewable "new binary" event. The digest below is the debian:12 manifest
-# list (covers x64 + ARM64 runners).
-DEBIAN = "debian:12@sha256:f37a335e82bca302e955fa39f9dfe28f1be618f016f8a2b56318e5a5111afc26"
+# reviewable "new binary" event. The digest below is the ubuntu:22.04 (jammy)
+# manifest list (covers x64 + ARM64 runners) — glibc 2.35 floor. glibc is
+# backward-compatible, so a 2.35 binary runs on 2.35+ hosts (Ubuntu 22.04+,
+# Debian 12+, Fedora 36+, RHEL 10+). Jammy is the oldest baseline with a
+# healthy, still-supported apt archive: debian:11 (glibc 2.31) was evaluated
+# first but its bullseye-security pool now 404s (LTS wind-down) and its gcc
+# 10.2 is below QEMU 11's GCC >= 10.4 minimum, so it cannot build or install
+# reliably in CI. Jammy's gcc 11.4, glib 2.72, and python 3.10 all satisfy
+# QEMU 11's build minimums with the stock apt workflow.
+DEBIAN = "ubuntu:22.04@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02"
+
+# Single source of truth for the Linux glibc floor implied by DEBIAN above.
+# Fanned out via $GITHUB_OUTPUT (glibc_floor) so packaging, BUILD-INFO, and
+# release notes can't drift from the container. Bump together with DEBIAN.
+GLIBC_FLOOR = "2.35"
 
 ENTRIES = {
     "qemu": {
@@ -82,7 +94,9 @@ def main():
         with open(out, "a") as f:
             f.write("matrix=" + json.dumps({"include": sel}) + "\n")
             f.write("publish=%s\n" % ("true" if publish else "false"))
-    print("selected:", [e["name"] for e in sel], "publish:", publish)
+            f.write("glibc_floor=%s\n" % GLIBC_FLOOR)
+    print("selected:", [e["name"] for e in sel], "publish:", publish,
+          "glibc_floor:", GLIBC_FLOOR)
 
 
 if __name__ == "__main__":

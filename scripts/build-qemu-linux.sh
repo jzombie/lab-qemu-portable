@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Linux portable build (runs inside debian:12 container for glibc floor).
+# Linux portable build (runs inside ubuntu:22.04 container for glibc 2.35 floor).
 # Env: QEMU_VERSION, TARGETS_MODE (native|both|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,24 +10,41 @@ SRC_DIR="${SRC_DIR:-$PWD/qemu-${QEMU_VERSION:?set QEMU_VERSION}}"
 BUILD_DIR="${BUILD_DIR:-$PWD/build}"
 STAGE_DIR="${STAGE_DIR:-$PWD/stage}"
 
-echo "==> Installing Linux build deps (debian:12)"
+echo "==> Installing Linux build deps (ubuntu:22.04, glibc 2.35 floor)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
-  bash bc bison bzip2 ca-certificates ccache flex gcc g++ git libc6-dev \
-  libcapstone-dev libffi-dev libglib2.0-dev libpixman-1-dev \
+  bash bc bison bzip2 ca-certificates ccache file \
+  binutils cmake flex gcc g++ git libc6-dev \
+  libcapstone-dev libcbor-dev libffi-dev libglib2.0-dev libpixman-1-dev \
   libslirp-dev libsdl2-dev libusb-1.0-0-dev libseccomp-dev libcap-ng-dev \
   libncurses-dev \
   libgnutls28-dev nettle-dev \
   libfdt-dev device-tree-compiler \
-  zlib1g-dev make meson ninja-build pkgconf python3 python3-venv \
-  python3-pip python3-setuptools python3-wheel \
-  tar xz-utils curl file patchelf
+  libgmp-dev libidn2-dev libp11-kit-dev libtasn1-6-dev libunistring-dev \
+  zlib1g-dev m4 make meson ninja-build pkgconf python3 python3-venv \
+  python3-pip python3-setuptools python3-wheel python3-tomli \
+  tar xz-utils curl patchelf
+# NOTE: m4 is for the pinned nettle source build (asm generation), not QEMU.
+# NOTE: jammy's python is 3.10, which lacks stdlib tomllib (3.11+); QEMU's
+# mkvenv needs the tomli backport to parse pythondeps.toml (bookworm's 3.11
+# didn't). The venv is non-isolated, so a system tomli is visible to it.
+# NOTE: jammy's distro meson (0.61) is older than QEMU's requirement, but
+# QEMU's configure builds its vendored meson (python/wheels/meson-1.11.1)
+# via mkvenv. Belt-and-braces: prefer pip versions when available so any
+# PATH lookup also finds new-enough ones.
+if command -v pip3 >/dev/null 2>&1; then
+  pip3 install --no-cache-dir -U "meson>=1.8" ninja tomli || true
+fi
 
 if command -v ccache >/dev/null 2>&1; then
   export CC="ccache gcc" CXX="ccache g++"
   ccache --zero-stats || true
 fi
+
+echo "==> Building pinned crypto deps (gnutls/nettle newer than jammy)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/build-deps-linux.sh"
 
 echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
@@ -36,7 +53,7 @@ cd "$BUILD_DIR"
 qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs --enable-sdl \
   --enable-gnutls --enable-nettle 2>&1 | tee configure.log
 # NOTE: nettle OR gcrypt (meson errors if both are enabled) — nettle here
-# because Debian 12 ships nettle 3.x with intact headers. macOS/Windows use
+# because Ubuntu 22.04 ships nettle 3.7.x with intact headers. macOS/Windows use
 # gcrypt (their nettle is 4.0, which removed sha.h/md5.h that QEMU 11.1.1
 # needs). DES works via either backend; the VNC smoke proof covers both.
 
