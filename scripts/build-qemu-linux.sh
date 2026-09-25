@@ -22,14 +22,17 @@ apt-get install -y --no-install-recommends \
   libgnutls28-dev nettle-dev \
   libfdt-dev device-tree-compiler \
   zlib1g-dev make meson ninja-build pkgconf python3 python3-venv \
-  python3-pip python3-setuptools python3-wheel \
+  python3-pip python3-setuptools python3-wheel python3-tomli \
   tar xz-utils curl patchelf
+# NOTE: jammy's python is 3.10, which lacks stdlib tomllib (3.11+); QEMU's
+# mkvenv needs the tomli backport to parse pythondeps.toml (bookworm's 3.11
+# didn't). The venv is non-isolated, so a system tomli is visible to it.
 # NOTE: jammy's distro meson (0.61) is older than QEMU's requirement, but
 # QEMU's configure builds its vendored meson (python/wheels/meson-1.11.1)
-# via mkvenv. Belt-and-braces: prefer a pip meson when available so any
-# PATH lookup also finds a new-enough one.
+# via mkvenv. Belt-and-braces: prefer pip versions when available so any
+# PATH lookup also finds new-enough ones.
 if command -v pip3 >/dev/null 2>&1; then
-  pip3 install --no-cache-dir -U "meson>=1.8" ninja || true
+  pip3 install --no-cache-dir -U "meson>=1.8" ninja tomli || true
 fi
 
 if command -v ccache >/dev/null 2>&1; then
