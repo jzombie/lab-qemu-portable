@@ -78,3 +78,22 @@ qemu_configure() {
   echo "+ ${src}/configure ${CONFIGURE_ARGS[*]} $*"
   "${src}/configure" "${CONFIGURE_ARGS[@]}" "$@"
 }
+
+verify_crypto() {
+  # $1 = crypto backend: nettle|gcrypt. Asserts GNUTLS + backend show YES in
+  # configure.log (VNC password needs DES via either). Fail-fast: a missing
+  # backend means configure silently dropped it.
+  # NOTE: config-host.mak variable names for these backends aren't stable
+  # across QEMU versions, so assert on the configure summary instead.
+  local backend="$1" label
+  case "$backend" in
+    nettle) label="nettle" ;;
+    gcrypt) label="libgcrypt" ;;
+    *) echo "ERROR: verify_crypto: unknown backend '$backend' (want nettle|gcrypt)" >&2; return 1 ;;
+  esac
+  grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
+    || { echo "ERROR: GNUTLS not enabled" >&2; return 1; }
+  grep -Eq "^[[:space:]]*${label}[[:space:]]*:[[:space:]]*YES" configure.log \
+    || { echo "ERROR: $label not enabled" >&2; return 1; }
+  echo "crypto OK: GNUTLS + $label"
+}

@@ -56,12 +56,7 @@ qemu_configure "$SRC_DIR" --enable-whpx --enable-tcg --enable-sdl --disable-gtk 
 # DES all the same (proven by the VNC DES smoke proof).
 
 echo "==> Verifying crypto backends (VNC password needs DES via gcrypt)"
-# config-host.mak variable names for these backends aren't stable across QEMU
-# versions, so assert on the configure summary instead (e.g. "nettle : YES").
-grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
-  || { echo "ERROR: GNUTLS not enabled"; exit 1; }
-grep -Eq '^[[:space:]]*libgcrypt[[:space:]]*:[[:space:]]*YES' configure.log \
-  || { echo "ERROR: libgcrypt not enabled"; exit 1; }
+verify_crypto gcrypt
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"

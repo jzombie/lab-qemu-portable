@@ -41,12 +41,7 @@ qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs --enable-sdl
 # needs). DES works via either backend; the VNC smoke proof covers both.
 
 echo "==> Verifying crypto backends (VNC password needs DES via nettle)"
-# config-host.mak variable names for these backends aren't stable across QEMU
-# versions, so assert on the configure summary instead (e.g. "nettle : YES").
-grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
-  || { echo "ERROR: GNUTLS not enabled"; exit 1; }
-grep -Eq '^[[:space:]]*nettle[[:space:]]*:[[:space:]]*YES' configure.log \
-  || { echo "ERROR: nettle not enabled"; exit 1; }
+verify_crypto nettle
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"

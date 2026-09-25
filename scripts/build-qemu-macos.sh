@@ -42,10 +42,7 @@ qemu_configure "$SRC_DIR" --enable-hvf --enable-cocoa --enable-tcg --disable-sdl
 # DES if it finds neither.
 
 echo "==> Verifying crypto backends (VNC password needs DES via gcrypt)"
-grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
-  || { echo "ERROR: GNUTLS not enabled"; exit 1; }
-grep -Eq '^[[:space:]]*libgcrypt[[:space:]]*:[[:space:]]*YES' configure.log \
-  || { echo "ERROR: libgcrypt not enabled"; exit 1; }
+verify_crypto gcrypt
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"
