@@ -34,6 +34,7 @@ pacman -S --noconfirm --needed \
   "${MINGW_PACKAGE_PREFIX}-SDL2" \
   "${MINGW_PACKAGE_PREFIX}-libusb" \
   "${MINGW_PACKAGE_PREFIX}-libssh" \
+  "${MINGW_PACKAGE_PREFIX}-dtc" \
   "${MINGW_PACKAGE_PREFIX}-zstd" \
   "${MINGW_PACKAGE_PREFIX}-ccache"
 

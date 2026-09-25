@@ -19,6 +19,7 @@ apt-get install -y --no-install-recommends \
   libslirp-dev libsdl2-dev libusb-1.0-0-dev libseccomp-dev libcap-ng-dev \
   libncurses-dev \
   libgnutls28-dev nettle-dev \
+  libfdt-dev device-tree-compiler \
   zlib1g-dev make meson ninja-build pkgconf python3 python3-venv \
   python3-pip python3-setuptools python3-wheel \
   tar xz-utils curl file patchelf

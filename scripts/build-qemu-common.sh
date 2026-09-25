@@ -39,6 +39,10 @@ else
 fi
 export NPROC
 
+# NOTE: --enable-fdt=system (not internal): internal makes meson git-fetch
+# the pinned dtc subproject revision, which fails whenever the remote won't
+# serve that SHA. Distro libfdt is stable API; every leg installs it
+# (libfdt-dev / brew dtc / mingw dtc).
 # NOTE: --enable-virtfs is intentionally NOT here (Linux-only; breaks
 # macOS/Windows configure). build-qemu-linux.sh appends it.
 CONFIGURE_ARGS=(
@@ -49,7 +53,7 @@ CONFIGURE_ARGS=(
   --disable-bsd-user
   --enable-slirp
   --enable-capstone
-  --enable-fdt=internal
+  --enable-fdt=system
   --disable-werror
   --disable-docs
   --enable-vnc
