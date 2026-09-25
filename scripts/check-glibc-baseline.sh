@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fail-closed glibc symbol baseline check.
 # Usage: check-glibc-baseline.sh MAX_GLIBC_VER FILE...
-#   e.g. check-glibc-baseline.sh 2.31 ./bin/qemu-system-x86_64 ./lib/*.so*
+#   e.g. check-glibc-baseline.sh 2.35 ./bin/qemu-system-x86_64 ./lib/*.so*
 # Fails (exit 1) if any ELF file requires a GLIBC version newer than MAX.
 # Non-ELF files are skipped. Requires readelf (binutils).
 #
@@ -11,7 +11,7 @@
 # 2.31 runs on any host with glibc >= 2.31 — but a stray newer symbol
 # (e.g. from a toolchain bump) would crash on older hosts. This check keeps
 # the floor honest; the floor itself comes from the digest-pinned container
-# in scripts/select-platforms.py (debian:11 -> 2.31).
+# in scripts/select-platforms.py (ubuntu:22.04 -> 2.35).
 set -euo pipefail
 
 MAX="${1:?usage: check-glibc-baseline.sh MAX_GLIBC_VER FILE...}"; shift

@@ -20,15 +20,16 @@ import sys
 #
 # Linux container is pinned by DIGEST, not tag: the toolchain only moves when
 # this pin is deliberately bumped, turning invisible environment drift into a
-# reviewable "new binary" event. The digest below is the debian:11 (bullseye)
-# manifest list (covers x64 + ARM64 runners) — glibc 2.31 floor, the oldest
-# baseline that still satisfies QEMU 11's build minimums (glib >= 2.66,
-# python >= 3.9). glibc is backward-compatible, so a 2.31 binary runs on
-# 2.31+ hosts (Debian 11+, Ubuntu 20.04+, RHEL 9+). See build-qemu-linux.sh:
-# bullseye's gcc (10.2) is below QEMU 11's GCC >= 10.4 minimum, so the Linux
-# legs build with clang 11 (meets the Clang >= 10.0 minimum) from the same
-# container.
-DEBIAN = "debian:11@sha256:6f519a81440354a85eb592c5f32109ab80605f6b892455983a6f618bf87fabe9"
+# reviewable "new binary" event. The digest below is the ubuntu:22.04 (jammy)
+# manifest list (covers x64 + ARM64 runners) — glibc 2.35 floor. glibc is
+# backward-compatible, so a 2.35 binary runs on 2.35+ hosts (Ubuntu 22.04+,
+# Debian 12+, Fedora 36+, RHEL 10+). Jammy is the oldest baseline with a
+# healthy, still-supported apt archive: debian:11 (glibc 2.31) was evaluated
+# first but its bullseye-security pool now 404s (LTS wind-down) and its gcc
+# 10.2 is below QEMU 11's GCC >= 10.4 minimum, so it cannot build or install
+# reliably in CI. Jammy's gcc 11.4, glib 2.72, and python 3.10 all satisfy
+# QEMU 11's build minimums with the stock apt workflow.
+DEBIAN = "ubuntu:22.04@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02"
 
 ENTRIES = {
     "qemu": {

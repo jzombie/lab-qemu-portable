@@ -79,7 +79,7 @@ case "$OS" in
     SRC_DIR="${SRC_DIR:-$PWD/wimlib-${VER}}"
     BUILD_DIR="${BUILD_DIR:-$PWD/build-wimlib}"
     STAGE_DIR="${STAGE_DIR:-$PWD/stage-wimlib}"
-    echo "==> Installing wimlib build deps (debian:11, glibc 2.31 floor)"
+    echo "==> Installing wimlib build deps (ubuntu:22.04, glibc 2.35 floor)"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y --no-install-recommends \

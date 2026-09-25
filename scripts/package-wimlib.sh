@@ -217,8 +217,6 @@ EOF
     # Bundle third-party shared libs (libxml2, libssl, libcrypto, libz, ...)
     # so the binary runs without apt installs. Same pattern as
     # package-qemu-linux.sh: only the glibc/loader core stays host-provided.
-    # Required since the debian:11 build links OpenSSL 1.1 (libssl.so.1.1),
-    # which no longer ships on newer distros (they carry libssl3).
     # The binary's $ORIGIN/../lib rpath is already set by build-wimlib.sh.
     is_host_lib() {
       case "$1" in
@@ -272,13 +270,13 @@ EOF
     done
     [[ "$missing" == "0" ]] || { echo "so closure incomplete" >&2; exit 1; }
     echo "bundled $(ls "$OUT/lib" | wc -l | tr -d ' ') libs in $OUT/lib"
-    # Fail-closed glibc floor check (debian:11 -> GLIBC 2.31).
-    bash "${SCRIPT_DIR}/check-glibc-baseline.sh" 2.31 "$OUT"/bin/* "$OUT"/lib/*.so*
+    # Fail-closed glibc floor check (ubuntu:22.04 -> GLIBC 2.35).
+    bash "${SCRIPT_DIR}/check-glibc-baseline.sh" 2.35 "$OUT"/bin/* "$OUT"/lib/*.so*
     cat > "$OUT/README.portable" <<EOF
-wimlib ${VER} portable (Linux ${ARCH}, Debian 11 glibc floor).
+wimlib ${VER} portable (Linux ${ARCH}, Ubuntu 22.04 glibc floor).
 Layout: bin/wimlib-imagex, lib/*.so*, share/.
 No install needed: ./bin/wimlib-imagex --version
-Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= 2.31 from host).
+Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= 2.35 from host).
 Overlays onto qemu-portable: copy bin/wimlib-imagex next to qemu binaries.
 EOF
     echo "$VER" > "$OUT/VERSION"
