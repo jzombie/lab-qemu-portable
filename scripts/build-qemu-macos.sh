@@ -21,6 +21,13 @@ if command -v ccache >/dev/null 2>&1; then
   ccache --zero-stats || true
 fi
 
+# Homebrew lives outside the compiler's default search paths and meson looks
+# system libfdt up via cc.find_library (not pkg-config), so point the driver
+# at the brew prefix explicitly. Also covers any other find_library lookup.
+BREW_PREFIX="$(brew --prefix)"
+export CPATH="${BREW_PREFIX}/include${CPATH:+:$CPATH}"
+export LIBRARY_PATH="${BREW_PREFIX}/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+
 echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
