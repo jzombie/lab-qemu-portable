@@ -90,6 +90,7 @@ jobs:
     outputs:
       matrix: ${{ steps.m.outputs.matrix }}
       publish: ${{ steps.m.outputs.publish }}
+      glibc_floor: ${{ steps.m.outputs.glibc_floor }}
     steps:
       - uses: actions/checkout@v4
       - id: m
@@ -100,6 +101,11 @@ jobs:
           FORCE: ${{ inputs.force }}
           EVENT: ${{ github.event_name }}
         run: python3 scripts/select-platforms.py
+      # One gate for every prose claim about the floor (README, release
+      # notes, fallbacks) vs the single source in select-platforms.py.
+      # Binary enforcement happens separately on real artifacts.
+      - name: Verify doc floors
+        run: bash scripts/verify-doc-floors.sh
 
   build:
     name: build (${{ matrix.name }})
@@ -119,6 +125,7 @@ jobs:
       MSYS: winsymlinks:nativestrict
       MSYSTEM: ${{ matrix.msystem || '' }}
       QEMU_VERSION: ${{ needs.resolve.outputs.version }}
+      GLIBC_FLOOR: ${{ needs.setup.outputs.glibc_floor }}
       TARGETS_MODE: ${{ inputs.targets || 'native' }}
     steps:
       - uses: actions/checkout@v4
@@ -210,6 +217,7 @@ jobs:
             echo "runner_image_os=${ImageOS:-unknown}"
             echo "runner_image_version=${ImageVersion:-unknown}"
             echo "container=${{ matrix.container || 'none' }}"
+            echo "glibc_floor=${{ needs.setup.outputs.glibc_floor }}"
             command -v gcc >/dev/null 2>&1 && gcc --version | head -1 || true
             command -v clang >/dev/null 2>&1 && clang --version | head -1 | xargs || true
             command -v ccache >/dev/null 2>&1 && ccache --version | head -1 || true
@@ -283,7 +291,7 @@ jobs:
             echo "- Full (\`targets=all\`): all softmmu emulators (FreeBSD/other arches)."
             echo "- Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via \`-display none -nographic\`."
             echo "- Layout: extract and run: Linux/macOS \`./qemu-portable/bin/qemu-system-x86_64 --version\`; Windows \`qemu-system-x86_64.exe --version\` from the extracted folder root (exes sit at the top level, no \`bin/\`). No installer/admin needed."
-            echo "- Linux built on a digest-pinned Ubuntu 22.04 container (glibc 2.35 floor; see BUILD-INFO-*.txt for the exact toolchain); macOS adhoc-signed for local HVF (\`xattr -d com.apple.quarantine\` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root."
+            echo "- Linux built on a digest-pinned container (glibc ${{ needs.setup.outputs.glibc_floor }} floor; see BUILD-INFO-*.txt for the exact image digest and toolchain); macOS adhoc-signed for local HVF (\`xattr -d com.apple.quarantine\` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root."
             echo "- Each archive is accompanied by a \`BUILD-INFO-<platform>.txt\` provenance record (commit, runner image, compiler, container digest)."
             echo RELEASE_BODY_EOF
           } >> "$GITHUB_OUTPUT"

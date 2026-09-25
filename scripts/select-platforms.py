@@ -31,6 +31,11 @@ import sys
 # QEMU 11's build minimums with the stock apt workflow.
 DEBIAN = "ubuntu:22.04@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02"
 
+# Single source of truth for the Linux glibc floor implied by DEBIAN above.
+# Fanned out via $GITHUB_OUTPUT (glibc_floor) so packaging, BUILD-INFO, and
+# release notes can't drift from the container. Bump together with DEBIAN.
+GLIBC_FLOOR = "2.35"
+
 ENTRIES = {
     "qemu": {
         "win-x64": {"name": "win-x64-ucrt64", "os": "windows-latest",
@@ -89,7 +94,9 @@ def main():
         with open(out, "a") as f:
             f.write("matrix=" + json.dumps({"include": sel}) + "\n")
             f.write("publish=%s\n" % ("true" if publish else "false"))
-    print("selected:", [e["name"] for e in sel], "publish:", publish)
+            f.write("glibc_floor=%s\n" % GLIBC_FLOOR)
+    print("selected:", [e["name"] for e in sel], "publish:", publish,
+          "glibc_floor:", GLIBC_FLOOR)
 
 
 if __name__ == "__main__":

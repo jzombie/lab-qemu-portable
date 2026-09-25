@@ -270,13 +270,16 @@ EOF
     done
     [[ "$missing" == "0" ]] || { echo "so closure incomplete" >&2; exit 1; }
     echo "bundled $(ls "$OUT/lib" | wc -l | tr -d ' ') libs in $OUT/lib"
-    # Fail-closed glibc floor check (ubuntu:22.04 -> GLIBC 2.35).
-    bash "${SCRIPT_DIR}/check-glibc-baseline.sh" 2.35 "$OUT"/bin/* "$OUT"/lib/*.so*
+    # Fail-closed glibc floor check. GLIBC_FLOOR arrives from CI (single
+    # source: GLIBC_FLOOR in scripts/select-platforms.py); fallback keeps
+    # local runs working.
+    GLIBC_FLOOR="${GLIBC_FLOOR:-2.35}"
+    bash "${SCRIPT_DIR}/check-glibc-baseline.sh" "$GLIBC_FLOOR" "$OUT"/bin/* "$OUT"/lib/*.so*
     cat > "$OUT/README.portable" <<EOF
-wimlib ${VER} portable (Linux ${ARCH}, Ubuntu 22.04 glibc floor).
+wimlib ${VER} portable (Linux ${ARCH}, glibc ${GLIBC_FLOOR} floor).
 Layout: bin/wimlib-imagex, lib/*.so*, share/.
 No install needed: ./bin/wimlib-imagex --version
-Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= 2.35 from host).
+Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= ${GLIBC_FLOOR} from host).
 Overlays onto qemu-portable: copy bin/wimlib-imagex next to qemu binaries.
 EOF
     echo "$VER" > "$OUT/VERSION"

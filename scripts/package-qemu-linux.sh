@@ -93,18 +93,21 @@ done
 [[ "$missing" == "0" ]] || { echo "so closure incomplete" >&2; exit 1; }
 echo "bundled $(ls "$OUT/lib" | wc -l | tr -d ' ') libs in $OUT/lib"
 
+# GLIBC_FLOOR arrives from CI (single source: GLIBC_FLOOR in
+# scripts/select-platforms.py, via setup job outputs); the fallback keeps
+# local runs working.
+GLIBC_FLOOR="${GLIBC_FLOOR:-2.35}"
 cat > "$OUT/README.portable" <<EOF
-QEMU ${VER} portable (Linux ${ARCH}, Ubuntu 22.04 glibc floor).
+QEMU ${VER} portable (Linux ${ARCH}, glibc ${GLIBC_FLOOR} floor).
 Layout: bin/qemu-system-*, bin/qemu-img, lib/*.so*, share/qemu firmware.
 No install needed: ./bin/qemu-system-x86_64 --version
-Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= 2.35 from host).
+Self-contained: bundled libs in lib/ via \$ORIGIN RPATH (glibc >= ${GLIBC_FLOOR} from host).
 Headless: ./bin/qemu-system-x86_64 -display none -accel kvm,tcg -nographic
 EOF
 echo "$VER" > "$OUT/VERSION"
 
-# Fail-closed glibc floor check: must match the select-platforms.py container
-# (ubuntu:22.04 -> GLIBC 2.35). Catches toolchain drift before release.
-bash "${SCRIPT_DIR}/check-glibc-baseline.sh" 2.35 "$OUT"/bin/* "$OUT"/lib/*.so*
+# Fail-closed glibc floor check. Catches toolchain drift before release.
+bash "${SCRIPT_DIR}/check-glibc-baseline.sh" "$GLIBC_FLOOR" "$OUT"/bin/* "$OUT"/lib/*.so*
 
 mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-linux-${ARCH}-${VER}.tar.xz"
