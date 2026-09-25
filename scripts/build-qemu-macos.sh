@@ -14,7 +14,8 @@ echo "==> Host: $(uname -m) / $(sw_vers -productVersion)"
 echo "==> Installing macOS build deps (Homebrew)"
 brew update
 brew install glib pixman libslirp meson ninja pkgconf python capstone dtc \
-  sdl2 libusb jpeg-turbo libpng snappy zstd ccache || brew upgrade glib pixman libslirp meson ninja pkgconf python capstone dtc sdl2 libusb jpeg-turbo libpng snappy zstd ccache
+  gnutls libgcrypt \
+  sdl2 libusb jpeg-turbo libpng snappy zstd ccache || brew upgrade glib pixman libslirp meson ninja pkgconf python capstone dtc gnutls libgcrypt sdl2 libusb jpeg-turbo libpng snappy zstd ccache
 
 if command -v ccache >/dev/null 2>&1; then
   export CC="ccache clang" CXX="ccache clang++"
@@ -32,7 +33,19 @@ echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-qemu_configure "$SRC_DIR" --enable-hvf --enable-cocoa --enable-tcg --disable-sdl
+qemu_configure "$SRC_DIR" --enable-hvf --enable-cocoa --enable-tcg --disable-sdl \
+  --enable-gnutls --enable-gcrypt 2>&1 | tee configure.log
+# NOTE: gcrypt here, not nettle: Homebrew ships nettle 4.0, which removed the
+# sha.h/md5.h headers QEMU 11.1.1 needs. Explicit flags (instead of
+# auto-detect) also pin the backend regardless of what the runner image
+# happens to provide — auto-detect errors if it finds both, silently drops
+# DES if it finds neither.
+
+echo "==> Verifying crypto backends (VNC password needs DES via gcrypt)"
+grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
+  || { echo "ERROR: GNUTLS not enabled"; exit 1; }
+grep -Eq '^[[:space:]]*libgcrypt[[:space:]]*:[[:space:]]*YES' configure.log \
+  || { echo "ERROR: libgcrypt not enabled"; exit 1; }
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"

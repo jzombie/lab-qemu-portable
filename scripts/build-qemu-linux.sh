@@ -35,8 +35,10 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 qemu_configure "$SRC_DIR" --enable-kvm --enable-tcg --enable-virtfs --enable-sdl \
   --enable-gnutls --enable-nettle 2>&1 | tee configure.log
-# NOTE: nettle OR gcrypt (meson errors if both are enabled) — nettle matches
-# the macOS leg, where VNC passwords already work.
+# NOTE: nettle OR gcrypt (meson errors if both are enabled) — nettle here
+# because Debian 12 ships nettle 3.x with intact headers. macOS/Windows use
+# gcrypt (their nettle is 4.0, which removed sha.h/md5.h that QEMU 11.1.1
+# needs). DES works via either backend; the VNC smoke proof covers both.
 
 echo "==> Verifying crypto backends (VNC password needs DES via nettle)"
 # config-host.mak variable names for these backends aren't stable across QEMU

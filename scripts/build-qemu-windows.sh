@@ -35,7 +35,7 @@ pacman -S --noconfirm --needed \
   "${MINGW_PACKAGE_PREFIX}-libusb" \
   "${MINGW_PACKAGE_PREFIX}-libssh" \
   "${MINGW_PACKAGE_PREFIX}-gnutls" \
-  "${MINGW_PACKAGE_PREFIX}-nettle" \
+  "${MINGW_PACKAGE_PREFIX}-libgcrypt" \
   "${MINGW_PACKAGE_PREFIX}-dtc" \
   "${MINGW_PACKAGE_PREFIX}-zstd" \
   "${MINGW_PACKAGE_PREFIX}-ccache"
@@ -50,17 +50,18 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 qemu_configure "$SRC_DIR" --enable-whpx --enable-tcg --enable-sdl --disable-gtk --disable-plugins \
-  --enable-gnutls --enable-nettle 2>&1 | tee configure.log
-# NOTE: nettle OR gcrypt (meson errors if both are enabled) — nettle matches
-# the Linux/macOS legs, where VNC passwords work.
+  --enable-gnutls --enable-gcrypt 2>&1 | tee configure.log
+# NOTE: gcrypt here, not nettle: MSYS2 ships nettle 4.0, which removed the
+# sha.h/md5.h headers QEMU 11.1.1 needs. gcrypt's API is stable and provides
+# DES all the same (proven by the VNC DES smoke proof).
 
-echo "==> Verifying crypto backends (VNC password needs DES via nettle)"
+echo "==> Verifying crypto backends (VNC password needs DES via gcrypt)"
 # config-host.mak variable names for these backends aren't stable across QEMU
 # versions, so assert on the configure summary instead (e.g. "nettle : YES").
 grep -Eq 'GNUTLS support[[:space:]]*:[[:space:]]*YES' configure.log \
   || { echo "ERROR: GNUTLS not enabled"; exit 1; }
-grep -Eq '^[[:space:]]*nettle[[:space:]]*:[[:space:]]*YES' configure.log \
-  || { echo "ERROR: nettle not enabled"; exit 1; }
+grep -Eq '^[[:space:]]*libgcrypt[[:space:]]*:[[:space:]]*YES' configure.log \
+  || { echo "ERROR: libgcrypt not enabled"; exit 1; }
 
 echo "==> Building (-j${NPROC})"
 make -j"${NPROC}"
