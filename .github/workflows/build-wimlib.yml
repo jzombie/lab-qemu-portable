@@ -115,10 +115,14 @@ jobs:
                   raise SystemExit(f"unknown platform(s): {unknown}; valid: {sorted(entries)}")
               sel = [entries[k] for k in keys]
           full = want in ("", "all")
-          # PR builds never publish (artifacts only); same for subset runs.
+          # A push to main that reaches this job touched pipeline files (paths
+          # filter), so our side changed even when upstream didn't — publish
+          # a rebuild tag, no babysitting. PR builds never publish (artifacts
+          # only); same for subset runs.
           publish = (full and os.environ.get("EVENT") != "pull_request"
                      and (os.environ.get("IS_NEW") == "true"
-                          or os.environ.get("FORCE", "").lower() == "true"))
+                          or os.environ.get("FORCE", "").lower() == "true"
+                          or os.environ.get("EVENT") == "push"))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write("matrix=" + json.dumps({"include": sel}) + "\n")
               f.write(f"publish={'true' if publish else 'false'}\n")
