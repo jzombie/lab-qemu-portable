@@ -15,15 +15,16 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
   bash bc bison bzip2 ca-certificates ccache file \
-  binutils flex gcc g++ git libc6-dev \
-  libcapstone-dev libffi-dev libglib2.0-dev libpixman-1-dev \
+  binutils cmake flex gcc g++ git libc6-dev \
+  libcapstone-dev libcbor-dev libffi-dev libglib2.0-dev libpixman-1-dev \
   libslirp-dev libsdl2-dev libusb-1.0-0-dev libseccomp-dev libcap-ng-dev \
   libncurses-dev \
   libgnutls28-dev nettle-dev \
   libfdt-dev device-tree-compiler \
-  zlib1g-dev make meson ninja-build pkgconf python3 python3-venv \
+  zlib1g-dev m4 make meson ninja-build pkgconf python3 python3-venv \
   python3-pip python3-setuptools python3-wheel python3-tomli \
   tar xz-utils curl patchelf
+# NOTE: m4 is for the pinned nettle source build (asm generation), not QEMU.
 # NOTE: jammy's python is 3.10, which lacks stdlib tomllib (3.11+); QEMU's
 # mkvenv needs the tomli backport to parse pythondeps.toml (bookworm's 3.11
 # didn't). The venv is non-isolated, so a system tomli is visible to it.
@@ -39,6 +40,10 @@ if command -v ccache >/dev/null 2>&1; then
   export CC="ccache gcc" CXX="ccache g++"
   ccache --zero-stats || true
 fi
+
+echo "==> Building pinned crypto deps (gnutls/nettle newer than jammy)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/build-deps-linux.sh"
 
 echo "==> Configuring (${TARGETS_MODE})"
 rm -rf "$BUILD_DIR"
