@@ -25,7 +25,7 @@ wimlib archives follow the same per-OS pattern (`wimlib-portable-<os>-<arch>-<ve
 
 Download your host's archive from the
 [releases page](https://github.com/jzombie/lab-qemu-portable/releases)
-(see Downloads above), then:
+(see [Downloads](#downloads) above), then:
 
 ### Windows (PowerShell — no admin, no installer)
 
