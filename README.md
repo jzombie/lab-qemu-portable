@@ -8,6 +8,12 @@ Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib]
 
 > **Portable = folders, not single-file exes.** Firmware data files must sit next to the binary, plus dynamically-linked accel/runtime libs. Static single-file linking is unsupported upstream for these paths.
 
+These builds are fetched automatically by
+[windows-headless](https://github.com/jzombie/windows-headless)
+([crates.io](https://crates.io/crates/windows-headless)) — headless Windows 11
+VMs from a Microsoft ISO — which downloads and SHA-256-verifies them on first
+run. Everything here is equally usable standalone.
+
 ## Downloads
 
 | Host | Archive | Inside |
