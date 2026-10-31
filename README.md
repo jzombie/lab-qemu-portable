@@ -68,7 +68,7 @@ Per-OS notes:
 
 - **Linux:** Ubuntu 22.04 container build (glibc 2.35 floor); runs on Ubuntu 22.04+ / Debian 12+. Self-contained: `lib/` bundled via `$ORIGIN` RPATH, no `apt install` needed (host glibc >= 2.35 only).
 - **macOS:** use `-accel hvf` with `qemu-system-aarch64`. Adhoc-signed, so clear quarantine after download: `xattr -cr qemu-portable`.
-- **Windows:** exes + DLLs at folder top level (see Quick start above).
+- **Windows:** exes + DLLs at folder top level (see [Quick start](#quick-start) above).
 
 ## Building
 
