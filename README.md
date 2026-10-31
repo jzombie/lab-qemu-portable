@@ -8,6 +8,12 @@ Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib]
 
 > **Portable = folders, not single-file exes.** Firmware data files must sit next to the binary, plus dynamically-linked accel/runtime libs. Static single-file linking is unsupported upstream for these paths.
 
+These builds are fetched automatically by
+[windows-headless](https://github.com/jzombie/windows-headless)
+([crates.io](https://crates.io/crates/windows-headless)) — headless Windows 11
+VMs from a Microsoft ISO — which downloads and SHA-256-verifies them on first
+run. Everything here is equally usable standalone.
+
 ## Downloads
 
 | Host | Archive | Inside |
@@ -23,8 +29,32 @@ wimlib archives follow the same per-OS pattern (`wimlib-portable-<os>-<arch>-<ve
 
 ## Quick start
 
+Download your host's archive from the
+[releases page](https://github.com/jzombie/lab-qemu-portable/releases)
+(see [Downloads](#downloads) above), then:
+
+### Windows (PowerShell — no admin, no installer)
+
+```powershell
+Expand-Archive qemu-portable-win-x64-UCRT64-*.zip qemu-portable
+cd qemu-portable
+.\qemu-system-x86_64.exe --version
+
+# Make a disk and boot it headless with acceleration:
+.\qemu-img.exe create -f qcow2 win.qcow2 64G
+.\qemu-system-x86_64.exe -accel whpx -cpu host -m 4G -smp 4 `
+  -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 `
+  -display none -nographic
+```
+
+For `-accel whpx` (one-time setup, needs admin):
+`DISM /online /Enable-Feature /FeatureName:HypervisorPlatform`.
+Without it, drop `-accel whpx` to fall back to TCG software emulation.
+
+### Linux / macOS
+
 ```bash
-tar -xf qemu-portable-linux-*.tar.xz   # unzip on Windows, tar -xzf on macOS
+tar -xf qemu-portable-linux-*.tar.xz   # tar -xzf on macOS
 ./qemu-portable/bin/qemu-system-x86_64 --version
 
 # Headless guest with acceleration (EDK2 + virtio):
@@ -38,7 +68,7 @@ Per-OS notes:
 
 - **Linux:** Ubuntu 22.04 container build (glibc 2.35 floor); runs on Ubuntu 22.04+ / Debian 12+. Self-contained: `lib/` bundled via `$ORIGIN` RPATH, no `apt install` needed (host glibc >= 2.35 only).
 - **macOS:** use `-accel hvf` with `qemu-system-aarch64`. Adhoc-signed, so clear quarantine after download: `xattr -cr qemu-portable`.
-- **Windows:** exes + DLLs at folder top level. For WHPX: `DISM /online /Enable-Feature /FeatureName:HypervisorPlatform`.
+- **Windows:** exes + DLLs at folder top level (see [Quick start](#quick-start) above).
 
 ## Building
 
