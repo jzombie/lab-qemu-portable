@@ -25,6 +25,10 @@ wimlib archives follow the same per-OS pattern (`wimlib-portable-<os>-<arch>-<ve
 
 ### Windows (PowerShell — no admin, no installer)
 
+Download the Windows zip from the
+[releases page](https://github.com/jzombie/lab-qemu-portable/releases),
+then:
+
 ```powershell
 Expand-Archive qemu-portable-win-x64-UCRT64-*.zip qemu-portable
 cd qemu-portable
