@@ -2,10 +2,11 @@
 
 Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib](https://wimlib.net)** for Windows, Linux, and macOS, plus a mirrored **[virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/)** driver pack for Windows guests.
 
-> **Windows highlight:** QEMU for Windows as a zip — no installer, no admin.
-> `Expand-Archive`, then `.\qemu-system-x86_64.exe -accel whpx`.
-> SDL-only (no GTK stack), WHPX + TCG fallback, DLLs + firmware included.
-> Upstream ships a GTK installer; this is the extract-and-run alternative for headless use.
+> **Windows zip:** no installer/admin, SDL-only, WHPX + TCG, DLLs + firmware included.
+> **Linux tar.xz:** glibc 2.35 floor, KVM + TCG, `.so` bundled, no `apt` needed.
+> **macOS tar.gz (Apple Silicon):** HVF + TCG, adhoc-signed.
+>
+> Upstream Windows is a GTK installer; Linux needs deps; this is extract-and-run for headless use.
 
 > **Status:** the Windows zip is CI smoke-tested (`smoke-qemu.sh`: version/accel/firmware/boot),
 > but the maintainer hasn't manually run it on physical Windows.
