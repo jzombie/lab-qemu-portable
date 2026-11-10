@@ -42,6 +42,13 @@ ENTRIES = {
                     "msystem": "UCRT64",
                     "build_script": "scripts/build-qemu-windows.sh",
                     "package_script": "scripts/package-qemu-windows.sh"},
+        # Windows ARM64: native aarch64 build on windows-11-arm via MSYS2
+        # CLANGARM64 (llvm toolchain; UCRT64/MINGW64 are x86_64-only).
+        # QEMU docs recommend CLANGARM64 for Windows/aarch64.
+        "win-arm64": {"name": "win-arm64-clangarm64", "os": "windows-11-arm",
+                      "msystem": "CLANGARM64",
+                      "build_script": "scripts/build-qemu-windows.sh",
+                      "package_script": "scripts/package-qemu-windows.sh"},
         "linux-x64": {"name": "linux-x64", "os": "ubuntu-24.04",
                       "container": DEBIAN,
                       "build_script": "scripts/build-qemu-linux.sh",
@@ -54,8 +61,9 @@ ENTRIES = {
                         "build_script": "scripts/build-qemu-macos.sh",
                         "package_script": "scripts/package-qemu-macos.sh"},
     },
-    # Same 4 legs as QEMU (macos-x64 omitted, same rationale), same
-    # digest-pinned Debian container for the Linux glibc floor.
+    # wimlib keeps the original 4 legs (no Windows ARM64 yet — see
+    # https://github.com/jzombie/lab-qemu-portable/issues/5 which tracks QEMU
+    # only); same digest-pinned Debian container for the Linux glibc floor.
     "wimlib": {
         "win-x64": {"name": "win-x64-ucrt64", "os": "windows-latest",
                     "msystem": "UCRT64"},

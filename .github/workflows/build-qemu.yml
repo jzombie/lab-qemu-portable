@@ -28,7 +28,7 @@ on:
         type: choice
         options: [native, both, all]
       platforms:
-        description: "'all' or comma-separated subset to build: win-x64,linux-x64,linux-arm64,macos-arm64 (e.g. 'macos-arm64' to iterate on one leg)"
+        description: "'all' or comma-separated subset to build: win-x64,win-arm64,linux-x64,linux-arm64,macos-arm64 (e.g. 'macos-arm64' to iterate on one leg)"
         required: false
         default: "all"
         type: string
@@ -290,7 +290,7 @@ jobs:
             echo "- Both (\`targets=both\`): x86_64 + aarch64 emulators on every host (run foreign-arch guests via software emulation)."
             echo "- Full (\`targets=all\`): all softmmu emulators (FreeBSD/other arches)."
             echo "- Accel: KVM (Linux) / HVF (macOS) / WHPX (Windows) + TCG fallback. Headless via \`-display none -nographic\`."
-            echo "- Layout: extract and run: Linux/macOS \`./qemu-portable/bin/qemu-system-x86_64 --version\`; Windows \`qemu-system-x86_64.exe --version\` from the extracted folder root (exes sit at the top level, no \`bin/\`). No installer/admin needed."
+            echo "- Layout: extract and run: Linux/macOS \`./qemu-portable/bin/qemu-system-x86_64 --version\`; Windows \`qemu-system-x86_64.exe\` (x64) or \`qemu-system-aarch64.exe\` (ARM64) from the extracted folder root (exes sit at the top level, no \`bin/\`). No installer/admin needed."
             echo "- Linux built on a digest-pinned container (glibc ${{ needs.setup.outputs.glibc_floor }} floor; see BUILD-INFO-*.txt for the exact image digest and toolchain); macOS adhoc-signed for local HVF (\`xattr -d com.apple.quarantine\` may be needed after download); Windows is SDL-only (no GTK assets), exes + DLLs at the zip root."
             echo "- Each archive is accompanied by a \`BUILD-INFO-<platform>.txt\` provenance record (commit, runner image, compiler, container digest)."
             echo RELEASE_BODY_EOF
