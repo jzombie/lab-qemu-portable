@@ -115,9 +115,11 @@ jobs:
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container || null }}
-    # Lean QEMU build: ~15 min (Linux) to ~40 min (Intel macOS). Fail fast on
-    # a real hang instead of burning the 6h default timeout.
-    timeout-minutes: 90
+    # Lean QEMU build: ~15 min (Linux) to ~55 min (Windows x64).
+    # Windows ARM64 is slower (emulated MSYS layer + cold ccache on first
+    # run) and exceeded the old 90-min cap in PR #8, so allow headroom
+    # without going back to the 6h default on a real hang.
+    timeout-minutes: 180
     defaults:
       run:
         shell: bash
@@ -224,8 +226,10 @@ jobs:
           } > "dist/BUILD-INFO-${{ matrix.name }}.txt"
           cat "dist/BUILD-INFO-${{ matrix.name }}.txt"
 
-      - name: Save build.ninja on failure
-        if: failure()
+      - name: Save build.ninja on failure or timeout
+        # Cancelled includes the timeout kill, which is exactly when the
+        # build graph is most needed for diagnosis (PR #8 arm64 leg).
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: build-ninja-${{ matrix.name }}
