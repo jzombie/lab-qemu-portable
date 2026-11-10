@@ -65,16 +65,30 @@ Without it, drop `-accel whpx` to fall back to TCG software emulation.
 
 > On Windows ARM64, use `qemu-portable-win-arm64-CLANGARM64-*.zip` and
 > `qemu-system-aarch64.exe` instead (same layout, ARM64 DLLs).
+> WHPX on ARM64 requires Windows 11 24H2 + Apr/May 2025 updates; on older builds drop `-accel whpx` (TCG fallback).
 
 ### Linux / macOS
 
 ```bash
-tar -xf qemu-portable-linux-*.tar.xz   # tar -xzf on macOS
-./qemu-portable/bin/qemu-system-x86_64 --version
+tar -xf qemu-portable-linux-*.tar.xz    # Linux
+tar -xzf qemu-portable-macos-*.tar.gz  # macOS
+./qemu-portable/bin/qemu-system-<arch> --version  # x86_64 on Intel, aarch64 on ARM (macOS: aarch64 only)
 
-# Headless guest with acceleration (EDK2 + virtio):
-./qemu-portable/bin/qemu-system-x86_64 -accel kvm -cpu host -m 4G -smp 4 \
+# Linux x86_64 headless guest (EDK2 + virtio):
+./qemu-portable/bin/qemu-system-x86_64 -accel kvm -cpu host -m 4G -smp 4 -M q35 \
   -drive if=pflash,format=raw,readonly=on,file=qemu-portable/share/qemu/edk2-x86_64-code.fd \
+  -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
+  -display none -nographic
+
+# Linux ARM64 headless guest (EDK2 + virtio, virt board for PCIe/pflash):
+./qemu-portable/bin/qemu-system-aarch64 -accel kvm -cpu host -m 4G -smp 4 -M virt \
+  -drive if=pflash,format=raw,readonly=on,file=qemu-portable/share/qemu/edk2-aarch64-code.fd \
+  -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
+  -display none -nographic
+
+# macOS ARM64 headless guest (same board, HVF instead of KVM):
+./qemu-portable/bin/qemu-system-aarch64 -accel hvf -cpu host -m 4G -smp 4 -M virt \
+  -drive if=pflash,format=raw,readonly=on,file=qemu-portable/share/qemu/edk2-aarch64-code.fd \
   -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
   -display none -nographic
 ```
