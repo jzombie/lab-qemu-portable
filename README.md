@@ -30,11 +30,12 @@ run. Everything here is equally usable standalone.
 | Host | Archive | Inside |
 |---|---|---|
 | Windows x86_64 (UCRT64) | `qemu-portable-win-x64-UCRT64-<ver>.zip` | `qemu-system-x86_64.exe` + DLLs at top level, `share/` firmware |
+| Windows ARM64 (CLANGARM64) | `qemu-portable-win-arm64-CLANGARM64-<ver>.zip` | `qemu-system-aarch64.exe` + DLLs at top level, `share/` firmware |
 | Linux x86_64 | `qemu-portable-linux-x86_64-<ver>.tar.xz` | `bin/qemu-system-x86_64`, `bin/qemu-img`, `lib/*.so*`, `share/qemu/` |
 | Linux ARM64 | `qemu-portable-linux-aarch64-<ver>.tar.xz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `lib/*.so*`, `share/qemu/` |
 | macOS ARM64 (Apple Silicon) | `qemu-portable-macos-arm64-<ver>.tar.gz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `lib/*.dylib`, `share/qemu/` |
 
-Coverage: Linux ships both arches, Windows is x86_64-only, macOS is Apple Silicon-only.
+Coverage: Linux ships both arches, Windows ships x64 + ARM64, macOS is Apple Silicon-only.
 
 wimlib archives follow the same per-OS pattern (`wimlib-portable-<os>-<arch>-<ver>`) with `bin/wimlib-imagex`. An x64 build runs x64 guests; an ARM build runs ARM guests.
 
@@ -51,9 +52,10 @@ Expand-Archive qemu-portable-win-x64-UCRT64-*.zip qemu-portable
 cd qemu-portable
 .\qemu-system-x86_64.exe --version
 
-# Make a disk and boot it headless with acceleration:
+# Make a disk and boot it headless with acceleration (EDK2 UEFI for Windows 11):
 .\qemu-img.exe create -f qcow2 win.qcow2 64G
-.\qemu-system-x86_64.exe -accel whpx -cpu host -m 4G -smp 4 `
+.\qemu-system-x86_64.exe -accel whpx -cpu host -m 4G -smp 4 -M q35 `
+  -drive if=pflash,format=raw,readonly=on,file=share/edk2-x86_64-code.fd `
   -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 `
   -display none -nographic
 ```
@@ -62,15 +64,33 @@ For `-accel whpx` (one-time setup, needs admin):
 `DISM /online /Enable-Feature /FeatureName:HypervisorPlatform`.
 Without it, drop `-accel whpx` to fall back to TCG software emulation.
 
+> On Windows ARM64, use `qemu-portable-win-arm64-CLANGARM64-*.zip` and
+> `qemu-system-aarch64.exe` instead (same layout, ARM64 DLLs) with
+> `-M virt` and `-drive if=pflash,format=raw,readonly=on,file=share/edk2-aarch64-code.fd`.
+> WHPX on ARM64 requires Windows 11 24H2 + Apr/May 2025 updates; on older builds drop `-accel whpx` (TCG fallback).
+
 ### Linux / macOS
 
 ```bash
-tar -xf qemu-portable-linux-*.tar.xz   # tar -xzf on macOS
-./qemu-portable/bin/qemu-system-x86_64 --version
+tar -xf qemu-portable-linux-*.tar.xz    # Linux
+tar -xzf qemu-portable-macos-*.tar.gz  # macOS
+./qemu-portable/bin/qemu-system-<arch> --version  # x86_64 on Intel, aarch64 on ARM (macOS: aarch64 only)
 
-# Headless guest with acceleration (EDK2 + virtio):
-./qemu-portable/bin/qemu-system-x86_64 -accel kvm -cpu host -m 4G -smp 4 \
+# Linux x86_64 headless guest (EDK2 + virtio):
+./qemu-portable/bin/qemu-system-x86_64 -accel kvm -cpu host -m 4G -smp 4 -M q35 \
   -drive if=pflash,format=raw,readonly=on,file=qemu-portable/share/qemu/edk2-x86_64-code.fd \
+  -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
+  -display none -nographic
+
+# Linux ARM64 headless guest (EDK2 + virtio, virt board for PCIe/pflash):
+./qemu-portable/bin/qemu-system-aarch64 -accel kvm -cpu host -m 4G -smp 4 -M virt \
+  -drive if=pflash,format=raw,readonly=on,file=qemu-portable/share/qemu/edk2-aarch64-code.fd \
+  -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
+  -display none -nographic
+
+# macOS ARM64 headless guest (same board, HVF instead of KVM):
+./qemu-portable/bin/qemu-system-aarch64 -accel hvf -cpu host -m 4G -smp 4 -M virt \
+  -drive if=pflash,format=raw,readonly=on,file=qemu-portable/share/qemu/edk2-aarch64-code.fd \
   -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
   -display none -nographic
 ```
@@ -87,7 +107,7 @@ Actions → **build-qemu-portable** (or **build-wimlib-portable**) → Run workf
 
 - `qemu_version` / `wimlib_version`: `auto` (latest stable) or pin `X.Y.Z`.
 - `targets` (QEMU only): `native` (host-arch emulator, default) | `both` (+ foreign-arch via TCG) | `all` (every softmmu target).
-- `platforms`: `all` or subset (`win-x64,linux-x64,linux-arm64,macos-arm64`).
+- `platforms`: `all` or subset (`win-x64,win-arm64,linux-x64,linux-arm64,macos-arm64`).
 - `force`: republish an existing version (e.g. toolchain rebuild).
 
 A release publishes on full-matrix runs: new upstream versions, `force` runs, and any push to `main` touching the pipeline (a push run means pipeline files changed, so the binaries are new). PRs and no-change schedules build for validation (artifacts only). Every artifact ships a `BUILD-INFO-*.txt` provenance record and `SHA256SUMS.txt`. Releases are never overwritten: new versions take `qemu-vX.Y.Z`, rebuilds take `qemu-vX.Y.Z-<run_number>` with the squash-merged commit message as notes.
@@ -95,7 +115,7 @@ A release publishes on full-matrix runs: new upstream versions, `force` runs, an
 ## Repo layout
 
 ```
-.github/workflows/build-qemu.yml    # QEMU: resolve -> 4-platform matrix -> release
+.github/workflows/build-qemu.yml    # QEMU: resolve -> 5-platform matrix -> release
 .github/workflows/build-wimlib.yml  # wimlib: same shape, own tags/artifacts (never triggers QEMU)
 .github/workflows/mirror-drivers.yml # weekly verified virtio-win ISO mirror (drivers-* tags)
 config/qemu/hvf-entitlements.plist  # macOS hypervisor entitlement for re-signing

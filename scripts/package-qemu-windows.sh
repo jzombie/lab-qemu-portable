@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Package Windows portable tree -> dist/qemu-portable-win-x64-<env>-<ver>.zip
+# Package Windows portable tree -> dist/qemu-portable-win-<arch>-<env>-<ver>.zip
 # SDL-only (no GTK assets). Recursive DLL collection via ntldd -R with
 # objdump fallback. Runs under MSYS2 bash.
+# Arch-aware: WIN_ARCH is x64 on UCRT64/x86_64 hosts, arm64 on
+# CLANGARM64/aarch64 hosts (native emulator qemu-system-x86_64.exe vs
+# qemu-system-aarch64.exe respectively).
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Must match build-qemu-windows.sh: direct install into a real workspace path
@@ -10,6 +13,11 @@ ROOT="$PWD/wininstall"
 DIST_DIR="${DIST_DIR:-$PWD/dist}"
 VER="${QEMU_VERSION:?set QEMU_VERSION}"
 ENV_TAG="${MSYSTEM:-UCRT64}"
+# Canonical Windows arch tag for the zip name + README (x64|arm64).
+case "$(uname -m)" in
+  arm64|aarch64) WIN_ARCH="arm64"; NATIVE_EXE="qemu-system-aarch64.exe" ;;
+  *) WIN_ARCH="x64"; NATIVE_EXE="qemu-system-x86_64.exe" ;;
+esac
 
 # Windows upstream layout (bindir=., datadir=share): exes live in the install
 # ROOT, firmware in ROOT/share. QEMU resolves datadir as <exe-dir>/share, so
@@ -85,15 +93,23 @@ done
 
 echo "$VER" > "$OUT/VERSION.txt"
 cat > "$OUT/README.portable.txt" <<EOF
-QEMU ${VER} portable (Windows x64 ${ENV_TAG}, SDL-only, no GTK).
-Run: qemu-system-x86_64.exe --version
-WHPX: qemu-system-x86_64.exe -accel whpx -nographic
-Headless: qemu-system-x86_64.exe -display none -nographic
+QEMU ${VER} portable (Windows ${WIN_ARCH} ${ENV_TAG}, SDL-only, no GTK).
+Run: ${NATIVE_EXE} --version
+WHPX: ${NATIVE_EXE} -accel whpx -nographic
+Headless: ${NATIVE_EXE} -display none -nographic
 No install/admin needed. DLLs are bundled side-by-side with the exes.
 EOF
+# ARM64 WHPX has a hard OS floor (pre-release WHP API on older 24H2 builds
+# is unsupported by QEMU); state it in the artifact so 23H2 users know
+# to fall back to TCG instead of reporting a broken binary.
+if [[ "$WIN_ARCH" == "arm64" ]]; then
+  cat >> "$OUT/README.portable.txt" <<EOF
+Note: WHPX on ARM64 requires Windows 11 24H2 + Apr/May 2025 updates; on older builds drop -accel whpx (TCG fallback).
+EOF
+fi
 
 mkdir -p "$DIST_DIR"
-PKG="${DIST_DIR}/qemu-portable-win-x64-${ENV_TAG}-${VER}.zip"
+PKG="${DIST_DIR}/qemu-portable-win-${WIN_ARCH}-${ENV_TAG}-${VER}.zip"
 rm -f "$PKG"
 # zip from MSYS2 preserves structure; powershell fallback if zip missing.
 # NOTE: paths inside powershell's -Command string get NO MSYS conversion,
