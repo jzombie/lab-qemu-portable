@@ -99,6 +99,14 @@ WHPX: ${NATIVE_EXE} -accel whpx -nographic
 Headless: ${NATIVE_EXE} -display none -nographic
 No install/admin needed. DLLs are bundled side-by-side with the exes.
 EOF
+# ARM64 WHPX has a hard OS floor (pre-release WHP API on older 24H2 builds
+# is unsupported by QEMU); state it in the artifact so 23H2 users know
+# to fall back to TCG instead of reporting a broken binary.
+if [[ "$WIN_ARCH" == "arm64" ]]; then
+  cat >> "$OUT/README.portable.txt" <<EOF
+Note: WHPX on ARM64 requires Windows 11 24H2 + Apr/May 2025 updates; on older builds drop -accel whpx (TCG fallback).
+EOF
+fi
 
 mkdir -p "$DIST_DIR"
 PKG="${DIST_DIR}/qemu-portable-win-${WIN_ARCH}-${ENV_TAG}-${VER}.zip"
