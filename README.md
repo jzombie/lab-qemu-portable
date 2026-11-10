@@ -52,9 +52,10 @@ Expand-Archive qemu-portable-win-x64-UCRT64-*.zip qemu-portable
 cd qemu-portable
 .\qemu-system-x86_64.exe --version
 
-# Make a disk and boot it headless with acceleration:
+# Make a disk and boot it headless with acceleration (EDK2 UEFI for Windows 11):
 .\qemu-img.exe create -f qcow2 win.qcow2 64G
-.\qemu-system-x86_64.exe -accel whpx -cpu host -m 4G -smp 4 `
+.\qemu-system-x86_64.exe -accel whpx -cpu host -m 4G -smp 4 -M q35 `
+  -drive if=pflash,format=raw,readonly=on,file=share/edk2-x86_64-code.fd `
   -drive file=win.qcow2,if=virtio -device virtio-net-pci,netdev=n0 -netdev user,id=n0 `
   -display none -nographic
 ```
@@ -64,7 +65,8 @@ For `-accel whpx` (one-time setup, needs admin):
 Without it, drop `-accel whpx` to fall back to TCG software emulation.
 
 > On Windows ARM64, use `qemu-portable-win-arm64-CLANGARM64-*.zip` and
-> `qemu-system-aarch64.exe` instead (same layout, ARM64 DLLs).
+> `qemu-system-aarch64.exe` instead (same layout, ARM64 DLLs) with
+> `-M virt` and `-drive if=pflash,format=raw,readonly=on,file=share/edk2-aarch64-code.fd`.
 > WHPX on ARM64 requires Windows 11 24H2 + Apr/May 2025 updates; on older builds drop `-accel whpx` (TCG fallback).
 
 ### Linux / macOS
