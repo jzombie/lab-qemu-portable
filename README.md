@@ -2,6 +2,17 @@
 
 Portable, zero-install builds of **[QEMU](https://www.qemu.org)** and **[wimlib](https://wimlib.net)** for Windows, Linux, and macOS, plus a mirrored **[virtio-win](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/)** driver pack for Windows guests.
 
+> **Windows zip:** no installer/admin, SDL-only, WHPX + TCG, DLLs + firmware included.
+> **Linux tar.xz:** glibc 2.35 floor, KVM + TCG, `.so` bundled, no `apt` needed.
+> **macOS tar.gz (Apple Silicon):** HVF + TCG, adhoc-signed.
+>
+> Upstream Windows is a GTK installer; Linux needs deps; this is extract-and-run for headless use.
+
+> **Status:** the Windows zip is CI smoke-tested (`smoke-qemu.sh`: version/accel/firmware/boot),
+> but the maintainer hasn't manually run it on physical Windows.
+> Primary validated use is headless Windows guests via `windows-headless`,
+> typically driving Windows from macOS/Linux over SSH. Native Windows run reports welcome.
+
 - **QEMU** (`qemu-vX.Y.Z` releases): system emulator matching the host CPU + `qemu-img` disk tool + firmware (SeaBIOS, EDK2, vgabios). Hardware acceleration per OS: KVM (Linux), HVF (macOS), WHPX (Windows), TCG fallback everywhere.
 - **wimlib** (`wimlib-vX.Y.Z` releases): `wimlib-imagex` WIM capture/apply tool + its libs. Overlays onto a QEMU tree (drop `bin/wimlib-imagex` next to the QEMU binaries).
 - **virtio-win driver pack** (`drivers-YYYYMMDD` releases): verified mirror of the Fedora `virtio-win.iso` (rsynced from `stable-virtio`, SHA256-checked). Attach as a second cdrom for headless Windows installs alongside the installer ISO and your `Autounattend.xml` drive.
