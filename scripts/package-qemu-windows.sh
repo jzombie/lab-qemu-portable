@@ -14,7 +14,10 @@ DIST_DIR="${DIST_DIR:-$PWD/dist}"
 VER="${QEMU_VERSION:?set QEMU_VERSION}"
 ENV_TAG="${MSYSTEM:-UCRT64}"
 # Canonical Windows arch tag for the zip name + README (x64|arm64).
-case "$(uname -m)" in
+# Key off $MSYSTEM via get-host-arch.sh, not `uname -m`: on ARM64 hosts
+# the MSYS2 runtime can be an x86_64 build running under emulation.
+HOST_ARCH="$("${SCRIPT_DIR}/get-host-arch.sh")"
+case "$HOST_ARCH" in
   arm64|aarch64) WIN_ARCH="arm64"; NATIVE_EXE="qemu-system-aarch64.exe" ;;
   *) WIN_ARCH="x64"; NATIVE_EXE="qemu-system-x86_64.exe" ;;
 esac

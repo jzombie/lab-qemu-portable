@@ -208,6 +208,11 @@ jobs:
         # Provenance record shipped inside artifacts and releases: answers
         # "which toolchain built this binary" for same-version rebuilds.
         run: |
+          # $MSYSTEM names the real target env: on Windows ARM64 the MSYS2
+          # runtime is an x86_64 build running under emulation, so the
+          # runner's `uname -m` reports x86_64 instead of aarch64.
+          # Centralized in scripts/get-host-arch.sh (single source of truth).
+          runner_arch=$(./scripts/get-host-arch.sh)
           {
             echo "qemu_version=${QEMU_VERSION}"
             echo "targets_mode=${TARGETS_MODE}"
@@ -215,7 +220,7 @@ jobs:
             echo "repo=${GITHUB_REPOSITORY}"
             echo "commit=${GITHUB_SHA}"
             echo "built_utc=$(date -u +%FT%TZ)"
-            echo "runner_arch=$(uname -m)"
+            echo "runner_arch=$runner_arch"
             echo "runner_image_os=${ImageOS:-unknown}"
             echo "runner_image_version=${ImageVersion:-unknown}"
             echo "container=${{ matrix.container || 'none' }}"

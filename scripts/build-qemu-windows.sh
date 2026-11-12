@@ -74,11 +74,12 @@ rm -rf "$PREFIX"
 make install
 
 echo "==> Verifying install tree (native exes at root, firmware in share/)"
-# Native emulator follows the host arch (build-qemu-common.sh policy):
+# Native emulator follows the host arch (build-qemu-common.sh policy, which
+# resolves it from $MSYSTEM — `uname -m` lies on emulated MSYS2 runtimes):
 # aarch64 on Windows ARM64 (CLANGARM64), x86_64 on Windows x64 (UCRT64).
 # In both/all modes the foreign emulator is also present — require at least
 # the native one plus qemu-img.
-case "$(uname -m)" in
+case "$HOST_ARCH" in
   arm64|aarch64) NATIVE_EXE="qemu-system-aarch64.exe" ;;
   *) NATIVE_EXE="qemu-system-x86_64.exe" ;;
 esac

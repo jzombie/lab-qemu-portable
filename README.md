@@ -35,9 +35,9 @@ run. Everything here is equally usable standalone.
 | Linux ARM64 | `qemu-portable-linux-aarch64-<ver>.tar.xz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `lib/*.so*`, `share/qemu/` |
 | macOS ARM64 (Apple Silicon) | `qemu-portable-macos-arm64-<ver>.tar.gz` | `bin/qemu-system-aarch64`, `bin/qemu-img`, `lib/*.dylib`, `share/qemu/` |
 
-Coverage: Linux ships both arches, Windows ships x64 + ARM64, macOS is Apple Silicon-only.
+QEMU coverage: Linux ships both arches, Windows ships x64 + ARM64, macOS is Apple Silicon-only.
 
-wimlib archives follow the same per-OS pattern (`wimlib-portable-<os>-<arch>-<ver>`) with `bin/wimlib-imagex`. An x64 build runs x64 guests; an ARM build runs ARM guests.
+wimlib archives follow the same pattern (`wimlib-portable-<os>-<arch>[-<env>]-<ver>`, the `-<env>` segment on Windows) with `bin/wimlib-imagex`. wimlib covers every host in the table above except Windows ARM64 (Windows x64, Linux x86_64 and aarch64, macOS Apple Silicon); its binary only needs to match the host it runs on.
 
 ## Quick start
 
@@ -98,7 +98,7 @@ tar -xzf qemu-portable-macos-*.tar.gz  # macOS
 Per-OS notes:
 
 - **Linux:** Ubuntu 22.04 container build (glibc 2.35 floor); runs on Ubuntu 22.04+ / Debian 12+. Self-contained: `lib/` bundled via `$ORIGIN` RPATH, no `apt install` needed (host glibc >= 2.35 only).
-- **macOS:** use `-accel hvf` with `qemu-system-aarch64`. Adhoc-signed, so clear quarantine after download: `xattr -cr qemu-portable`.
+- **macOS:** use `-accel hvf` with `qemu-system-aarch64`. Adhoc-signed: browser-downloaded tarballs carry a quarantine flag, clear it with `xattr -cr qemu-portable` (a `curl`/`wget` download has none).
 - **Windows:** exes + DLLs at folder top level (see [Quick start](#quick-start) above).
 
 ## Building
