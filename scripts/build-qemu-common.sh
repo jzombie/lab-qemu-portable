@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Shared configure-flag logic. Sourced by build-qemu-linux/macos/windows.sh.
 # Env in:  TARGETS_MODE (native|both|all), PREFIX, SRC_DIR, BUILD_DIR, STAGE_DIR
-# Env out: CONFIGURE_ARGS (bash array), NPROC
+# Env out: CONFIGURE_ARGS (bash array), NPROC, HOST_ARCH, NATIVE_TARGET
 #
 # Arch policy: NO mixing by default. native = host-arch emulator only
 # (x86_64-softmmu on Intel, aarch64-softmmu on ARM). both = the two emulators
@@ -12,7 +12,16 @@ set -euo pipefail
 TARGETS_MODE="${TARGETS_MODE:-native}"
 PREFIX="${PREFIX:-/qemu-portable}"
 
-case "$(uname -m)" in
+# Host arch. On Windows the MSYS2 runtime can be an x86_64 build running
+# under emulation, so `uname -m` reports the runtime, not the host CPU
+# (an ARM64 runner reports x86_64); $MSYSTEM names the real target env.
+case "${MSYSTEM:-}" in
+  CLANGARM64) HOST_ARCH="aarch64" ;;
+  UCRT64|CLANG64|MINGW64) HOST_ARCH="x86_64" ;;
+  *) HOST_ARCH="$(uname -m)" ;;
+esac
+
+case "$HOST_ARCH" in
   arm64|aarch64) NATIVE_TARGET="aarch64-softmmu" ;;
   x86_64|amd64) NATIVE_TARGET="x86_64-softmmu" ;;
   *) NATIVE_TARGET="" ;;
@@ -25,7 +34,7 @@ elif [[ "$TARGETS_MODE" == "both" ]]; then
 elif [[ -n "$NATIVE_TARGET" ]]; then
   TARGET_LIST="$NATIVE_TARGET" # native mode (a bare 'lean' value also lands here)
 else
-  echo "warning: unknown host arch $(uname -m), building x86_64+aarch64 pair" >&2
+  echo "warning: unknown host arch $HOST_ARCH, building x86_64+aarch64 pair" >&2
   TARGET_LIST="x86_64-softmmu,aarch64-softmmu"
 fi
 echo "==> target-list: ${TARGET_LIST:-<all softmmu>} (mode=${TARGETS_MODE})"

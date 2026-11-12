@@ -53,12 +53,20 @@ with_timeout() {
 }
 
 # Native emulator for this host. Nothing else is executed, ever.
-case "$(uname -m)" in
+# On Windows the MSYS2 runtime can be an x86_64 build running under
+# emulation, so `uname -m` reports the runtime, not the host CPU;
+# $MSYSTEM names the real target env there.
+case "${MSYSTEM:-}" in
+  CLANGARM64) HOST_ARCH="aarch64" ;;
+  UCRT64|CLANG64|MINGW64) HOST_ARCH="x86_64" ;;
+  *) HOST_ARCH="$(uname -m)" ;;
+esac
+case "$HOST_ARCH" in
   arm64|aarch64) NATIVE="$BIN/qemu-system-aarch64" ;;
   *) NATIVE="$BIN/qemu-system-x86_64" ;;
 esac
 [[ -x "$NATIVE" ]] || NATIVE="$NATIVE.exe"
-[[ -x "$NATIVE" ]] || fail "missing native emulator for $(uname -m)"
+[[ -x "$NATIVE" ]] || fail "missing native emulator for $HOST_ARCH"
 IMG="$BIN/qemu-img"
 [[ -x "$IMG" ]] || IMG="$IMG.exe"
 
