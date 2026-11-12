@@ -12,14 +12,15 @@ set -euo pipefail
 TARGETS_MODE="${TARGETS_MODE:-native}"
 PREFIX="${PREFIX:-/qemu-portable}"
 
-# Host arch. On Windows the MSYS2 runtime can be an x86_64 build running
-# under emulation, so `uname -m` reports the runtime, not the host CPU
-# (an ARM64 runner reports x86_64); $MSYSTEM names the real target env.
-case "${MSYSTEM:-}" in
-  CLANGARM64) HOST_ARCH="aarch64" ;;
-  UCRT64|CLANG64|MINGW64) HOST_ARCH="x86_64" ;;
-  *) HOST_ARCH="$(uname -m)" ;;
-esac
+# Host arch via centralized helper (scripts/get-host-arch.sh). On Windows
+# the MSYS2 runtime can be an x86_64 build running under emulation, so
+# `uname -m` reports the runtime, not the host CPU (an ARM64 runner
+# reports x86_64); $MSYSTEM names the real target env.
+# NOTE: no SCRIPT_DIR assignment here — this file is sourced by
+# build-qemu-{linux,macos,windows}.sh, which each define their own
+# SCRIPT_DIR and reuse it after sourcing. A plain SCRIPT_DIR=... here
+# would clobber the caller's variable, so resolve the helper path inline.
+HOST_ARCH="$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/get-host-arch.sh")"
 
 case "$HOST_ARCH" in
   arm64|aarch64) NATIVE_TARGET="aarch64-softmmu" ;;

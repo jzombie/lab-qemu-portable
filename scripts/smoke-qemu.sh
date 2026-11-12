@@ -53,14 +53,11 @@ with_timeout() {
 }
 
 # Native emulator for this host. Nothing else is executed, ever.
-# On Windows the MSYS2 runtime can be an x86_64 build running under
-# emulation, so `uname -m` reports the runtime, not the host CPU;
-# $MSYSTEM names the real target env there.
-case "${MSYSTEM:-}" in
-  CLANGARM64) HOST_ARCH="aarch64" ;;
-  UCRT64|CLANG64|MINGW64) HOST_ARCH="x86_64" ;;
-  *) HOST_ARCH="$(uname -m)" ;;
-esac
+# Resolved via get-host-arch.sh: on Windows the MSYS2 runtime can be an
+# x86_64 build running under emulation, so `uname -m` reports the
+# runtime, not the host CPU; $MSYSTEM names the real target env there.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOST_ARCH="$("${SCRIPT_DIR}/get-host-arch.sh")"
 case "$HOST_ARCH" in
   arm64|aarch64) NATIVE="$BIN/qemu-system-aarch64" ;;
   *) NATIVE="$BIN/qemu-system-x86_64" ;;
@@ -149,7 +146,6 @@ else
   [[ -f "$FWDIR/edk2-aarch64-code.fd" ]] || fail "missing edk2-aarch64-code.fd"
   PROBE_FW=(--pflash "$FWDIR/edk2-aarch64-code.fd" --machine virt)
 fi
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 with_timeout 90 "$PYBIN" "$SCRIPT_DIR/qemu-vnc-des-probe.py" --qemu "$NATIVE" "${PROBE_FW[@]}" \
   || fail "VNC DES proof failed (rc=$?)"
 

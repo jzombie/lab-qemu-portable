@@ -211,11 +211,8 @@ jobs:
           # $MSYSTEM names the real target env: on Windows ARM64 the MSYS2
           # runtime is an x86_64 build running under emulation, so the
           # runner's `uname -m` reports x86_64 instead of aarch64.
-          case "${MSYSTEM:-}" in
-            CLANGARM64) runner_arch=aarch64 ;;
-            UCRT64|CLANG64|MINGW64) runner_arch=x86_64 ;;
-            *) runner_arch=$(uname -m) ;;
-          esac
+          # Centralized in scripts/get-host-arch.sh (single source of truth).
+          runner_arch=$(./scripts/get-host-arch.sh)
           {
             echo "qemu_version=${QEMU_VERSION}"
             echo "targets_mode=${TARGETS_MODE}"
